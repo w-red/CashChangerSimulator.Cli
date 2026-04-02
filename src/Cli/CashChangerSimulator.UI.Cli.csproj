@@ -49,8 +49,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\CashChangerSimulator.Core\CashChangerSimulator.Core.csproj" />
-        <ProjectReference Include="..\CashChangerSimulator.Device\CashChangerSimulator.Device.csproj" />
+        <PackageReference Include="CashChangerSimulator.Core" Version="1.0.0-local" />
+        <PackageReference Include="CashChangerSimulator.Device" Version="1.0.0-local" />
     </ItemGroup>
 
     <ItemGroup>

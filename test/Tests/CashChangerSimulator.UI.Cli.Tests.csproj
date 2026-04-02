@@ -18,9 +18,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CashChangerSimulator.Core\CashChangerSimulator.Core.csproj" />
-    <ProjectReference Include="..\..\src\CashChangerSimulator.Device\CashChangerSimulator.Device.csproj" />
-    <ProjectReference Include="..\..\src\CashChangerSimulator.UI.Cli\CashChangerSimulator.UI.Cli.csproj" />
+    <PackageReference Include="CashChangerSimulator.Core" Version="1.0.0-local" />
+    <PackageReference Include="CashChangerSimulator.Device" Version="1.0.0-local" />
+    <ProjectReference Include="..\..\src\Cli\CashChangerSimulator.UI.Cli.csproj" />
   </ItemGroup>
 
   <ItemGroup>
