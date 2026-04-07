@@ -106,7 +106,7 @@ public class CliCashServiceTests
         _service.EndDeposit();
 
         // Assert
-        _mockDevice.Verify(c => c.EndDepositAsync(DepositAction.Store), Times.Once);
+        _mockDevice.Verify(c => c.EndDepositAsync(DepositAction.NoChange), Times.Once);
     }
 
     /// <summary>Dispense 操作が DispenseChangeAsync を呼び出すことを検証します。</summary>

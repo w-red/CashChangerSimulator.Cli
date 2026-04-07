@@ -35,6 +35,20 @@ public class CliIntegrationTests : IDisposable
 
         // CLI の DI 設定を流用
         CliDIContainer.ConfigureServices(services, Array.Empty<string>());
+
+        // テストごとに一意な Mutex 名を使用するように ICashChangerDevice を再登録
+        var testMutexName = $"Local\\CashChangerSimulator_Integ_{Guid.NewGuid()}";
+        services.AddSingleton<ICashChangerDevice>(sp =>
+        {
+            var factory = (VirtualCashChangerDeviceFactory)sp.GetRequiredService<ICashChangerDeviceFactory>();
+            var manager = sp.GetRequiredService<CashChangerManager>();
+            var statusManager = sp.GetRequiredService<HardwareStatusManager>();
+            var inventory = sp.GetRequiredService<Inventory>();
+            
+            var device = (VirtualCashChangerDevice)factory.Create(manager, inventory, statusManager, testMutexName);
+            device.OpenAsync().GetAwaiter().GetResult();
+            return device;
+        });
         
         // テスト用に一部のサービスを差し替え
         services.AddSingleton<IAnsiConsole>(_console);
@@ -55,11 +69,10 @@ public class CliIntegrationTests : IDisposable
         _device = _serviceProvider.GetRequiredService<ICashChangerDevice>();
         _dispatcher = _serviceProvider.GetRequiredService<ICliCommandDispatcher>();
 
-        // デバイスの初期化
-        _device.OpenAsync().GetAwaiter().GetResult();
+        // デバイスの初期化（ICashChangerDevice のファクトリ内ですでに Open 済み）
         _device.ClaimAsync(1000).GetAwaiter().GetResult();
         _device.EnableAsync().GetAwaiter().GetResult();
-
+        
         // 在庫をクリア
         var inventory = _serviceProvider.GetRequiredService<Inventory>();
         inventory.Clear();

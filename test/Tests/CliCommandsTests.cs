@@ -26,6 +26,21 @@ public class CliCommandsTests : IDisposable
         // Cleanup singleton or static state if any
         var builder = Host.CreateApplicationBuilder();
         CliDIContainer.ConfigureServices(builder.Services, ["--verbose"]);
+
+        // テストごとに一意な Mutex 名を使用するように ICashChangerDevice を再登録（並列実行やクリーンアップ遅延による競合回避）
+        var testMutexName = $"Local\\CashChangerSimulator_Test_{Guid.NewGuid()}";
+        builder.Services.AddSingleton<ICashChangerDevice>(sp =>
+        {
+            var factory = (VirtualCashChangerDeviceFactory)sp.GetRequiredService<ICashChangerDeviceFactory>();
+            var manager = sp.GetRequiredService<CashChangerManager>();
+            var statusManager = sp.GetRequiredService<HardwareStatusManager>();
+            var inventory = sp.GetRequiredService<Inventory>();
+            
+            var device = (VirtualCashChangerDevice)factory.Create(manager, inventory, statusManager, testMutexName);
+            device.OpenAsync().GetAwaiter().GetResult();
+            return device;
+        });
+
         _serviceProvider = builder.Services.BuildServiceProvider();
 
         // Ensure static service provider is initialized for internal resolutions
@@ -33,9 +48,6 @@ public class CliCommandsTests : IDisposable
 
         _commands = _serviceProvider.GetRequiredService<CliCommands>();
         _device = _serviceProvider.GetRequiredService<ICashChangerDevice>();
-
-        // We should ensure the device is opened for tests unless specified otherwise
-        _device.OpenAsync().GetAwaiter().GetResult();
     }
 
     public void Dispose()
@@ -78,10 +90,10 @@ public class CliCommandsTests : IDisposable
         _commands.Claim(1000);
 
         // Assert
-        // Assert
         if (_device is VirtualCashChangerDevice simulator)
         {
-            simulator.HardwareStatus.IsClaimedByAnother.Value.ShouldBeTrue();
+            // 自分が占有しても IsClaimedByAnother (他者が占有) は False のまま
+            simulator.HardwareStatus.IsClaimedByAnother.Value.ShouldBeFalse();
         }
     }
 
@@ -96,7 +108,6 @@ public class CliCommandsTests : IDisposable
         _commands.Release();
 
         // Assert
-        // Assert
         if (_device is VirtualCashChangerDevice simulator)
         {
             simulator.HardwareStatus.IsClaimedByAnother.Value.ShouldBeFalse();
@@ -107,19 +118,19 @@ public class CliCommandsTests : IDisposable
     [Fact]
     public void EnableShouldCompleteSuccessfully()
     {
-        // Arrange
-        _commands.Claim(1000);
-        // FireAndForget so wait a bit
-        Thread.Sleep(500);
+        // Act & Assert
+        Should.NotThrow(() => _commands.Claim(1000), "Claim should not throw and should succeed.");
+        
+        // Wait for state cleanup if any (FireAndForget behavior in some systems)
+        Thread.Sleep(100);
 
-        // Act
-        _commands.Enable();
+        Should.NotThrow(() => _commands.Enable(), "Enable should not throw and should succeed.");
 
         // Assert
         if (_device is VirtualCashChangerDevice simulator)
         {
-            // Wait for async state transition (FireAndForget)
-            SpinWait.SpinUntil(() => simulator.HardwareStatus.DeviceEnabled.Value, 3000).ShouldBeTrue();
+            // 同期的にセットされるはずだが、念のため SpinUntil を継続
+            SpinWait.SpinUntil(() => simulator.HardwareStatus.DeviceEnabled.Value, 2000).ShouldBeTrue("DeviceEnabled property should be true after Enable command.");
         }
     }
 
@@ -128,23 +139,21 @@ public class CliCommandsTests : IDisposable
     public void DisableShouldCompleteSuccessfully()
     {
         // Arrange
-        _commands.Claim(1000);
-        Thread.Sleep(500);
-
-        _commands.Enable();
+        Should.NotThrow(() => _commands.Claim(1000));
+        Should.NotThrow(() => _commands.Enable());
+        
         if (_device is VirtualCashChangerDevice simulator)
         {
-             SpinWait.SpinUntil(() => simulator.HardwareStatus.DeviceEnabled.Value, 3000).ShouldBeTrue();
+             SpinWait.SpinUntil(() => simulator.HardwareStatus.DeviceEnabled.Value, 2000).ShouldBeTrue();
         }
 
         // Act
-        _commands.Disable();
+        Should.NotThrow(() => _commands.Disable());
 
         // Assert
         if (_device is VirtualCashChangerDevice simulator2)
         {
-            // Wait for async state transition (FireAndForget)
-            SpinWait.SpinUntil(() => !simulator2.HardwareStatus.DeviceEnabled.Value, 3000).ShouldBeTrue();
+            SpinWait.SpinUntil(() => !simulator2.HardwareStatus.DeviceEnabled.Value, 2000).ShouldBeTrue("DeviceEnabled property should be false after Disable command.");
         }
     }
 
