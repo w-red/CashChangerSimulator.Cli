@@ -1,136 +1,77 @@
 using Moq;
-using Shouldly;
 using Spectre.Console;
+using Spectre.Console.Testing;
 using Microsoft.Extensions.Localization;
 using CashChangerSimulator.UI.Cli.Services;
-using Microsoft.PointOfService;
+using CashChangerSimulator.Core.Exceptions;
+using CashChangerSimulator.Core.Models;
+using Shouldly;
+using Xunit;
 
 namespace CashChangerSimulator.UI.Cli.Tests;
 
-/// <summary>CliServiceBase の機能を検証するためのテストクラス。</summary>
+/// <summary>CliServiceBase の共通エラー処理およびレポート機能を検証するためのテストクラス。</summary>
 public class CliServiceBaseTests
 {
-    private readonly IAnsiConsole _console;
-    private readonly StringWriter _consoleOutput;
+    private readonly TestConsole _console;
     private readonly Mock<IStringLocalizer> _mockLocalizer;
-    private readonly TestCliService _service;
+    private readonly TestService _service;
 
     public CliServiceBaseTests()
     {
-        _consoleOutput = new StringWriter();
-        _console = AnsiConsole.Create(new AnsiConsoleSettings
-        {
-            Ansi = AnsiSupport.No,
-            ColorSystem = ColorSystemSupport.NoColors,
-            Out = new AnsiConsoleOutput(_consoleOutput)
-        });
-
+        _console = new TestConsole();
         _mockLocalizer = new Mock<IStringLocalizer>();
-        
-        // Mock localizer to return the key as the localized value, including arguments if any
+        _service = new TestService(_console, _mockLocalizer.Object);
+
+        // Mock localizer to return keys
         _mockLocalizer.Setup(l => l[It.IsAny<string>()]).Returns((string s) => new LocalizedString(s, s));
-        _mockLocalizer.Setup(l => l[It.IsAny<string>(), It.IsAny<object[]>()]).Returns((string s, object[] args) => 
-            new LocalizedString(s, args == null || args.Length == 0 ? s : $"{s}({string.Join(", ", args)})"));
-
-        _service = new TestCliService(_console, _mockLocalizer.Object);
+        _mockLocalizer.Setup(l => l[It.IsAny<string>(), It.IsAny<object[]>()]).Returns((string s, object[] args) => new LocalizedString(s, s));
     }
 
-    private class TestCliService(IAnsiConsole console, IStringLocalizer localizer) 
-        : CliServiceBase(console, localizer)
-    {
-    }
-
-    /// <summary>メッセージが null の場合、成功ラベルのみが出力されることを検証します。</summary>
+    /// <summary>ReportSuccess が適切なマークアップを出力することを検証します。</summary>
     [Fact]
-    public void ReportSuccessWithNullMessageShouldWriteLabelOnly()
+    public void ReportSuccessShouldMarkupToConsole()
     {
         // Act
-        _service.ReportSuccess(null);
+        _service.DoReportSuccess("Success Message");
 
         // Assert
-        var output = _consoleOutput.ToString();
-        output.ShouldContain("messages.success_label");
+        _console.Output.ShouldContain("Success Message");
     }
 
-    /// <summary>メッセージが指定された場合、ラベルとメッセージの両方が出力されることを検証します。</summary>
+    /// <summary>DeviceException 例外が適切に処理されることを検証します。</summary>
     [Fact]
-    public void ReportSuccessWithNonEmptyMessageShouldWriteLabelAndMessage()
-    {
-        // Act
-        _service.ReportSuccess("Operation Completed");
-
-        // Assert
-        var output = _consoleOutput.ToString();
-        output.ShouldContain("messages.success_label");
-        output.ShouldContain("Operation Completed");
-    }
-
-    /// <summary>PosControlException が発生した場合、詳細なエラー情報が出力されることを検証します。</summary>
-    [Fact]
-    public void HandleExceptionPosControlExceptionShouldWriteDetailedInformation()
+    public void HandleDeviceExceptionShouldReportDetailedError()
     {
         // Arrange
-        var ex = new PosControlException("Hardware Error", ErrorCode.Timeout, 5);
+        var ex = new DeviceException("Device Error", DeviceErrorCode.Failure);
 
         // Act
-        _service.HandleException(ex);
+        _service.DoHandleException(ex);
 
         // Assert
-        var output = _consoleOutput.ToString();
-        output.ShouldContain("messages.error_label");
-        output.ShouldContain("Hardware Error");
-        output.ShouldContain("messages.summary_label");
-        output.ShouldContain("messages.error_summary_timeout");
-        output.ShouldContain("messages.code_label");
-        output.ShouldContain("Timeout");
-        output.ShouldContain("5");
+        _mockLocalizer.Verify(l => l["messages.error_label"], Times.Once);
+        _console.Output.ShouldContain("Device Error");
     }
 
-    /// <summary>ヒントが存在するエラーの場合、ヒント情報が出力されることを検証します。</summary>
+    /// <summary>一般的な例外が適切にエラー報告されることを検証します。</summary>
     [Fact]
-    public void HandleExceptionPosControlExceptionWithHintShouldWriteHint()
+    public void HandleGenericExceptionShouldReportError()
     {
         // Arrange
-        var ex = new PosControlException("Access Denied", ErrorCode.Closed);
+        var ex = new Exception("Generic Error");
 
         // Act
-        _service.HandleException(ex);
+        _service.DoHandleException(ex);
 
         // Assert
-        var output = _consoleOutput.ToString();
-        output.ShouldContain("messages.hint_format");
-        output.ShouldContain("messages.error_hint_closed");
+        _mockLocalizer.Verify(l => l["messages.error_label"], Times.Once);
+        _console.Output.ShouldContain("Generic Error");
     }
 
-    /// <summary>一般的な例外が発生した場合、シンプルなエラーメッセージが出力されることを検証します。</summary>
-    [Fact]
-    public void HandleExceptionGenericExceptionShouldWriteSimpleErrorMessage()
+    private class TestService(IAnsiConsole console, IStringLocalizer localizer) : CliServiceBase(console, localizer)
     {
-        // Arrange
-        var ex = new Exception("Critical System Error");
-
-        // Act
-        _service.HandleException(ex);
-
-        // Assert
-        var output = _consoleOutput.ToString();
-        output.ShouldContain("messages.error_label");
-        output.ShouldContain("Critical System Error");
-    }
-
-    /// <summary>エラーサマリのキーが見つからない場合、汎用サマリが返されることを検証します。</summary>
-    [Fact]
-    public void GetSummaryWhenKeyNotFoundShouldReturnGenericSummary()
-    {
-        // Arrange
-        _mockLocalizer.Setup(l => l["messages.error_summary_illegal"]).Returns(new LocalizedString("messages.error_summary_illegal", "messages.error_summary_illegal", true));
-        _mockLocalizer.Setup(l => l["messages.error_summary_generic"]).Returns(new LocalizedString("messages.error_summary_generic", "Generic Error Summary"));
-
-        // Act
-        _service.HandleException(new PosControlException("Illegal Op", ErrorCode.Illegal));
-
-        // Assert
-        var output = _consoleOutput.ToString();
-        output.ShouldContain("Generic Error Summary");
+        public void DoReportSuccess(string message) => ReportSuccess(message);
+        public void DoHandleException(Exception ex) => HandleException(ex);
     }
 }

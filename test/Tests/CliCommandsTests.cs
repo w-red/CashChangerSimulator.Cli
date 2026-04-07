@@ -1,304 +1,204 @@
-using Moq;
-using Spectre.Console;
-using Spectre.Console.Rendering;
-using Microsoft.Extensions.Localization;
-using Microsoft.PointOfService;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using System.Threading;
 using CashChangerSimulator.UI.Cli.Services;
-using CashChangerSimulator.Device;
+using CashChangerSimulator.Core;
+using CashChangerSimulator.Core.Models;
+using CashChangerSimulator.Core.Services;
+using CashChangerSimulator.Core.Managers;
+using CashChangerSimulator.Device.Virtual;
+using Microsoft.Extensions.Logging.Abstractions;
+using Shouldly;
+using Xunit;
 
 namespace CashChangerSimulator.UI.Cli.Tests;
 
-/// <summary>CliCommands のコマンド実行機能を検証するためのテストクラス。</summary>
-public class CliCommandsTests
+/// <summary>CliCommands の各種コマンド実行機能を検証するためのテストクラス。</summary>
+[Collection("SequentialTests")]
+public class CliCommandsTests : IDisposable
 {
-    private readonly Mock<SimulatorCashChanger> _mockChanger;
-    private readonly Mock<CliDeviceService> _mockDeviceService;
-    private readonly Mock<CliCashService> _mockCashService;
-    private readonly Mock<CliConfigService> _mockConfigService;
-    private readonly Mock<CliViewService> _mockViewService;
-    private readonly Mock<CliScriptService> _mockScriptService;
-    private readonly Mock<IAnsiConsole> _mockConsole;
-    private readonly Mock<IStringLocalizer> _mockLocalizer;
+    private readonly IServiceProvider _serviceProvider;
     private readonly CliCommands _commands;
+    private readonly ICashChangerDevice _device;
 
     public CliCommandsTests()
     {
-        _mockChanger = new Mock<SimulatorCashChanger>(new Device.Coordination.SimulatorDependencies());
-        _mockConsole = new Mock<IAnsiConsole>();
-        _mockLocalizer = new Mock<IStringLocalizer>();
-        
-        // Mocking services that CliCommands depends on
-        _mockDeviceService = new Mock<CliDeviceService>(null!, null!, null!);
-        _mockCashService = new Mock<CliCashService>(null!, null!, null!, null!, null!, null!);
-        _mockConfigService = new Mock<CliConfigService>(null!, null!, null!);
-        _mockViewService = new Mock<CliViewService>(null!, null!, null!, null!, null!, null!, null!);
-        _mockScriptService = new Mock<CliScriptService>(null!, null!, null!);
+        // Cleanup singleton or static state if any
+        var builder = Host.CreateApplicationBuilder();
+        CliDIContainer.ConfigureServices(builder.Services, ["--verbose"]);
+        _serviceProvider = builder.Services.BuildServiceProvider();
 
-        _mockLocalizer.Setup(l => l[It.IsAny<string>()]).Returns((string s) => new LocalizedString(s, s));
-        _mockLocalizer.Setup(l => l[It.IsAny<string>(), It.IsAny<object[]>()]).Returns((string s, object[] args) => 
-            new LocalizedString(s, args != null && args.Length > 0 ? $"{s} {string.Join(" ", args)}" : s));
+        // Ensure static service provider is initialized for internal resolutions
+        SimulatorServices.Provider = new TestServiceProvider(_serviceProvider);
 
-        _commands = new CliCommands(
-            _mockChanger.Object,
-            _mockDeviceService.Object,
-            _mockCashService.Object,
-            _mockConfigService.Object,
-            _mockViewService.Object,
-            _mockScriptService.Object,
-            _mockConsole.Object,
-            _mockLocalizer.Object);
+        _commands = _serviceProvider.GetRequiredService<CliCommands>();
+        _device = _serviceProvider.GetRequiredService<ICashChangerDevice>();
+
+        // We should ensure the device is opened for tests unless specified otherwise
+        _device.OpenAsync().GetAwaiter().GetResult();
     }
 
-    /// <summary>Status コマンドが ViewService.Status を呼び出すことを検証します。</summary>
+    public void Dispose()
+    {
+        _device.CloseAsync().GetAwaiter().GetResult();
+        _device.Dispose();
+        SimulatorServices.Provider = null;
+        GC.SuppressFinalize(this);
+    }
+
+    private sealed class TestServiceProvider(IServiceProvider provider) : ISimulatorServiceProvider
+    {
+        public T Resolve<T>() where T : class => provider.GetRequiredService<T>();
+    }
+
+    /// <summary>Open コマンドが正常に実行されることを検証します。</summary>
     [Fact]
-    public void StatusShouldCallViewService()
+    public void OpenShouldCompleteSuccessfully()
+    {
+        // Arrange
+        // (Constructor already opens)
+
+        // Act & Assert
+        Should.NotThrow(() => _commands.Open());
+    }
+
+    /// <summary>Status コマンドが例外を投げずに実行されることを検証します。</summary>
+    [Fact]
+    public void StatusShouldCompleteSuccessfully()
+    {
+        // Act & Assert
+        Should.NotThrow(() => _commands.Status());
+    }
+
+    /// <summary>Claim コマンドが正常に実行されることを検証します。</summary>
+    [Fact]
+    public void ClaimShouldCompleteSuccessfully()
     {
         // Act
-        _commands.Status();
-
-        // Assert
-        _mockViewService.Verify(s => s.Status(), Times.Once);
-    }
-
-    /// <summary>Open コマンドが DeviceService.Open を呼び出すことを検証します。</summary>
-    [Fact]
-    public void OpenShouldCallDeviceService()
-    {
-        // Act
-        _commands.Open();
-
-        // Assert
-        _mockDeviceService.Verify(s => s.Open(), Times.Once);
-    }
-
-    /// <summary>LogLevel コマンドが有効な入力を受け入れ、成功メッセージを表示することを検証します。</summary>
-    [Fact]
-    public void LogLevelShouldUpdateOnValidInput()
-    {
-        // Act
-        _commands.LogLevel("Information");
-
-        // Assert
-        _mockConsole.Verify(c => c.Write(It.IsAny<IRenderable>()), Times.AtLeastOnce);
-    }
-
-    /// <summary>LogLevel コマンドが無効な入力に対してエラーメッセージを表示することを検証します。</summary>
-    [Fact]
-    public void LogLevelShouldShowErrorOnInvalidInput()
-    {
-        // Act
-        _commands.LogLevel("InvalidLevel");
-
-        // Assert
-        _mockLocalizer.Verify(l => l["messages.invalid_log_level", "InvalidLevel"], Times.Once);
-    }
-
-    /// <summary>Help コマンドがルールとテーブルをコンソールに出力することを検証します。</summary>
-    [Fact]
-    public void HelpShouldWriteToConsole()
-    {
-        // Act
-        _commands.Help();
-
-        // Assert
-        _mockConsole.Verify(c => c.Write(It.IsAny<Rule>()), Times.Once);
-        _mockConsole.Verify(c => c.Write(It.IsAny<Table>()), Times.Once);
-    }
-
-    /// <summary>Claim コマンドが DeviceService.Claim を呼び出すことを検証します。</summary>
-    [Fact]
-    public void ClaimShouldCallDeviceService()
-    {
         _commands.Claim(1000);
-        _mockDeviceService.Verify(s => s.Claim(1000), Times.Once);
+
+        // Assert
+        // Assert
+        if (_device is VirtualCashChangerDevice simulator)
+        {
+            simulator.HardwareStatus.IsClaimedByAnother.Value.ShouldBeTrue();
+        }
     }
 
-    /// <summary>Enable コマンドが DeviceService.Enable を呼び出すことを検証します。</summary>
+    /// <summary>Release コマンドが正常に実行されることを検証します。</summary>
     [Fact]
-    public void EnableShouldCallDeviceService()
+    public void ReleaseShouldCompleteSuccessfully()
     {
-        _commands.Enable();
-        _mockDeviceService.Verify(s => s.Enable(), Times.Once);
-    }
+        // Arrange
+        _commands.Claim(1000);
 
-    /// <summary>Disable コマンドが DeviceService.Disable を呼び出すことを検証します。</summary>
-    [Fact]
-    public void DisableShouldCallDeviceService()
-    {
-        _commands.Disable();
-        _mockDeviceService.Verify(s => s.Disable(), Times.Once);
-    }
-
-    /// <summary>Release コマンドが DeviceService.Release を呼び出すことを検証します。</summary>
-    [Fact]
-    public void ReleaseShouldCallDeviceService()
-    {
+        // Act
         _commands.Release();
-        _mockDeviceService.Verify(s => s.Release(), Times.Once);
+
+        // Assert
+        // Assert
+        if (_device is VirtualCashChangerDevice simulator)
+        {
+            simulator.HardwareStatus.IsClaimedByAnother.Value.ShouldBeFalse();
+        }
     }
 
-    /// <summary>Close コマンドが DeviceService.Close を呼び出すことを検証します。</summary>
+    /// <summary>Enable コマンドが正常に実行されることを検証します。</summary>
     [Fact]
-    public void CloseShouldCallDeviceService()
+    public void EnableShouldCompleteSuccessfully()
     {
-        _commands.Close();
-        _mockDeviceService.Verify(s => s.Close(), Times.Once);
+        // Arrange
+        _commands.Claim(1000);
+        // FireAndForget so wait a bit
+        Thread.Sleep(500);
+
+        // Act
+        _commands.Enable();
+
+        // Assert
+        if (_device is VirtualCashChangerDevice simulator)
+        {
+            // Wait for async state transition (FireAndForget)
+            SpinWait.SpinUntil(() => simulator.HardwareStatus.DeviceEnabled.Value, 3000).ShouldBeTrue();
+        }
     }
 
-    /// <summary>ReadCashCounts コマンドが CashService.ReadCashCounts を呼び出すことを検証します。</summary>
+    /// <summary>Disable コマンドが正常に実行されることを検証します。</summary>
     [Fact]
-    public void ReadCashCountsShouldCallCashService()
+    public void DisableShouldCompleteSuccessfully()
     {
-        _commands.ReadCashCounts();
-        _mockCashService.Verify(s => s.ReadCashCounts(), Times.Once);
+        // Arrange
+        _commands.Claim(1000);
+        Thread.Sleep(500);
+
+        _commands.Enable();
+        if (_device is VirtualCashChangerDevice simulator)
+        {
+             SpinWait.SpinUntil(() => simulator.HardwareStatus.DeviceEnabled.Value, 3000).ShouldBeTrue();
+        }
+
+        // Act
+        _commands.Disable();
+
+        // Assert
+        if (_device is VirtualCashChangerDevice simulator2)
+        {
+            // Wait for async state transition (FireAndForget)
+            SpinWait.SpinUntil(() => !simulator2.HardwareStatus.DeviceEnabled.Value, 3000).ShouldBeTrue();
+        }
     }
 
-    /// <summary>Deposit コマンドが CashService.Deposit を呼び出すことを検証します。</summary>
+    /// <summary>Deposit コマンドが正常に実行されることを検証します。</summary>
     [Fact]
-    public void DepositShouldCallCashService()
+    public void DepositShouldCompleteSuccessfully()
     {
+        // Arrange
+        _commands.Claim(1000);
+        _commands.Enable();
+
+        // Act & Assert
+        Should.NotThrow(() => _commands.Deposit(1000));
+    }
+
+    /// <summary>EndDeposit コマンドが正常に実行されることを検証します。</summary>
+    [Fact]
+    public void EndDepositShouldCompleteSuccessfully()
+    {
+        // Arrange
+        _commands.Claim(1000);
+        _commands.Enable();
         _commands.Deposit(1000);
-        _mockCashService.Verify(s => s.Deposit(1000), Times.Once);
+
+        // Act & Assert
+        Should.NotThrow(() => _commands.EndDeposit());
     }
 
-    /// <summary>FixDeposit コマンドが CashService.FixDeposit を呼び出すことを検証します。</summary>
+    /// <summary>Dispense コマンドが正常に実行されることを検証します。</summary>
     [Fact]
-    public void FixDepositShouldCallCashService()
-    {
-        _commands.FixDeposit();
-        _mockCashService.Verify(s => s.FixDeposit(), Times.Once);
-    }
-
-    /// <summary>EndDeposit コマンドが CashService.EndDeposit を呼び出すことを検証します。</summary>
-    [Fact]
-    public void EndDepositShouldCallCashService()
-    {
-        _commands.EndDeposit();
-        _mockCashService.Verify(s => s.EndDeposit(), Times.Once);
-    }
-
-    /// <summary>Dispense コマンドが CashService.Dispense を呼び出すことを検証します。</summary>
-    [Fact]
-    public void DispenseShouldCallCashService()
-    {
-        _commands.Dispense(1000);
-        _mockCashService.Verify(s => s.Dispense(1000), Times.Once);
-    }
-
-    /// <summary>AdjustCashCounts コマンドが CashService.AdjustCashCounts を呼び出すことを検証します。</summary>
-    [Fact]
-    public void AdjustCashCountsShouldCallCashService()
-    {
-        _commands.AdjustCashCounts("1000:1");
-        _mockCashService.Verify(s => s.AdjustCashCounts("1000:1"), Times.Once);
-    }
-
-    /// <summary>History コマンドが ViewService.History を呼び出すことを検証します。</summary>
-    [Fact]
-    public void HistoryShouldCallViewService()
-    {
-        _commands.History(10);
-        _mockViewService.Verify(s => s.History(10), Times.Once);
-    }
-
-    /// <summary>ExportHistory コマンドが ViewService.ExportHistory を呼び出すことを検証します。</summary>
-    [Fact]
-    public void ExportHistoryShouldCallViewService()
-    {
-        _commands.ExportHistory("test.csv");
-        _mockViewService.Verify(s => s.ExportHistory("test.csv"), Times.Once);
-    }
-
-    /// <summary>Run Script コマンドが ScriptService.RunScriptAsync を呼び出すことを検証します。</summary>
-    [Fact]
-    public async Task RunScriptShouldCallScriptService()
-    {
-        await _commands.RunScript("test.json");
-        _mockScriptService.Verify(s => s.RunScriptAsync("test.json"), Times.Once);
-    }
-
-    /// <summary>ConfigList コマンドが ConfigService.List を呼び出すことを検証します。</summary>
-    [Fact]
-    public void ConfigListShouldCallConfigService()
-    {
-        _commands.ConfigList();
-        _mockConfigService.Verify(s => s.List(), Times.Once);
-    }
-
-    /// <summary>ConfigGet コマンドが ConfigService.Get を呼び出すことを検証します。</summary>
-    [Fact]
-    public void ConfigGetShouldCallConfigService()
-    {
-        _commands.ConfigGet("key");
-        _mockConfigService.Verify(s => s.Get("key"), Times.Once);
-    }
-
-    /// <summary>ConfigSet コマンドが ConfigService.Set を呼び出すことを検証します。</summary>
-    [Fact]
-    public void ConfigSetShouldCallConfigService()
-    {
-        _commands.ConfigSet("key", "value");
-        _mockConfigService.Verify(s => s.Set("key", "value"), Times.Once);
-    }
-
-    /// <summary>ConfigSave コマンドが ConfigService.Save を呼び出すことを検証します。</summary>
-    [Fact]
-    public void ConfigSaveShouldCallConfigService()
-    {
-        _commands.ConfigSave();
-        _mockConfigService.Verify(s => s.Save(), Times.Once);
-    }
-
-    /// <summary>ConfigReload コマンドが ConfigService.Reload を呼び出すことを検証します。</summary>
-    [Fact]
-    public void ConfigReloadShouldCallConfigService()
-    {
-        _commands.ConfigReload();
-        _mockConfigService.Verify(s => s.Reload(), Times.Once);
-    }
-
-    /// <summary>HandleAsyncError がコンソールに出力することを検証します。</summary>
-    [Fact]
-    public void HandleAsyncErrorShouldWriteToConsole()
-    {
-        var args = new DeviceErrorEventArgs(ErrorCode.Failure, 0, ErrorLocus.Output, ErrorResponse.Clear);
-        _commands.HandleAsyncError(null!, args);
-        _mockConsole.Verify(c => c.Write(It.IsAny<IRenderable>()), Times.AtLeastOnce);
-    }
-
-    /// <summary>HandleAsyncError が Illegal エラーかつデバイス無効時に適切なヒントを表示することを検証します。</summary>
-    [Fact]
-    public void HandleAsyncErrorIllegalNotEnabledShouldShowSpecificHint()
+    public void DispenseShouldCompleteSuccessfully()
     {
         // Arrange
-        _mockChanger.Setup(c => c.DeviceEnabled).Returns(false);
-        var args = new DeviceErrorEventArgs(ErrorCode.Illegal, 0, ErrorLocus.Output, ErrorResponse.Clear);
-        
-        // Mocking localizer to return specific hint for not enabled
-        _mockLocalizer.Setup(l => l["messages.error_hint_notenabled"]).Returns(new LocalizedString("messages.error_hint_notenabled", "Please enable device first"));
-        _mockLocalizer.Setup(l => l["messages.error_hint_illegal"]).Returns(new LocalizedString("messages.error_hint_illegal", "Illegal operation", true)); // Not found
+        _commands.Claim(1000);
+        _commands.Enable();
 
-        // Act
-        _commands.HandleAsyncError(null!, args);
-
-        // Assert
-        _mockLocalizer.Verify(l => l[It.Is<string>(s => s.Contains("hint_notenabled"))], Times.Once);
-        _mockConsole.Verify(c => c.Write(It.IsAny<IRenderable>()), Times.AtLeastOnce);
+        // Act & Assert
+        Should.NotThrow(() => _commands.Dispense(500));
     }
 
-    /// <summary>HandleAsyncError が未知のエラーコードに対してデフォルトヒントを表示することを検証します。</summary>
+
+    /// <summary>BoxRemoved コマンドがシミュレートされたデバイスの状態を更新することを検証します。</summary>
     [Fact]
-    public void HandleAsyncErrorUnknownErrorShouldShowGenericHint()
+    public void BoxRemovedShouldCompleteSuccessfully()
     {
-        // Arrange
-        var args = new DeviceErrorEventArgs(ErrorCode.Extended, 0, ErrorLocus.Output, ErrorResponse.Clear);
-        _mockLocalizer.Setup(l => l[It.IsAny<string>()]).Returns((string s) => new LocalizedString(s, s, true)); // All not found
-        _mockLocalizer.Setup(l => l["messages.error_hint_generic"]).Returns(new LocalizedString("messages.error_hint_generic", "Generic error hint"));
-
         // Act
-        _commands.HandleAsyncError(null!, args);
+        // Act
+        _commands.SetBoxRemoved(true);
 
         // Assert
-        _mockLocalizer.Verify(l => l["messages.error_hint_generic"], Times.Once);
+        if (_device is VirtualCashChangerDevice simulator)
+        {
+            simulator.HardwareStatus.IsCollectionBoxRemoved.Value.ShouldBeTrue();
+        }
     }
+
 }

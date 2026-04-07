@@ -1,5 +1,12 @@
 using Moq;
 using CashChangerSimulator.UI.Cli.Services;
+using CashChangerSimulator.Core;
+using CashChangerSimulator.Core.Models;
+using CashChangerSimulator.Core.Services;
+using CashChangerSimulator.Core.Services.DeviceEventTypes;
+using Spectre.Console;
+using Microsoft.Extensions.Localization;
+using R3;
 
 namespace CashChangerSimulator.UI.Cli.Tests;
 
@@ -11,19 +18,22 @@ public class CliCommandDispatcherTests
 
     public CliCommandDispatcherTests()
     {
-        // CliCommands has a protected constructor or needs dependencies, 
-        // but we can mock it since we set its methods as virtual in CliCommands if possible.
-        // Wait, CliCommands methods are NOT virtual in the current implementation.
-        // I should check CliCommands.cs.
+        var mockDevice = new Mock<ICashChangerDevice>();
+        mockDevice.Setup(d => d.ErrorEvents).Returns(R3.Observable.Empty<DeviceErrorEventArgs>());
+        mockDevice.Setup(d => d.State).Returns(new ReactiveProperty<DeviceControlState>(DeviceControlState.Closed).ToReadOnlyReactiveProperty());
+
+        var mockAnsiConsole = new Mock<IAnsiConsole>();
+        var mockLocalizer = new Mock<IStringLocalizer>();
+
         _mockCommands = new Mock<CliCommands>(
-            null!, // changer
+            mockDevice.Object,
             null!, // deviceService
             null!, // cashService
             null!, // configService
             null!, // viewService
             null!, // scriptService
-            null!, // console
-            null!  // localizer
+            mockAnsiConsole.Object,
+            mockLocalizer.Object
         );
         _dispatcher = new CliCommandDispatcher(_mockCommands.Object);
     }

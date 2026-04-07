@@ -1,76 +1,51 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using CashChangerSimulator.UI.Cli.Services;
-using CashChangerSimulator.Device;
+using CashChangerSimulator.Core.Services;
+using CashChangerSimulator.Core.Managers;
+using CashChangerSimulator.Device.Virtual;
 using Shouldly;
-
 using Xunit;
 
 namespace CashChangerSimulator.UI.Cli.Tests;
 
-/// <summary>CliDIContainer のサービス登録機能を検証するためのテストクラス。</summary>
-[Collection("SequentialTests")]
+/// <summary>CliDIContainer の依存関係注入設定を検証するためのテストクラス。</summary>
 public class CliDIContainerTests
 {
-    /// <summary>全ての必須サービスが DI コンテナに登録されていることを検証します。</summary>
-    [Fact]
-    public void ShouldRegisterRequiredServices()
-    {
-        // Arrange & Act
-        var builder = Host.CreateApplicationBuilder();
-        CliDIContainer.ConfigureServices(builder.Services, []);
-        var provider = builder.Services.BuildServiceProvider();
+    private readonly IServiceProvider _serviceProvider;
 
-        // Assert
-        provider.GetService<SimulatorCashChanger>().ShouldNotBeNull();
-        provider.GetService<ICliCommandDispatcher>().ShouldNotBeNull();
-        provider.GetService<CliDeviceService>().ShouldNotBeNull();
-        provider.GetService<CliCashService>().ShouldNotBeNull();
-        provider.GetService<CliConfigService>().ShouldNotBeNull();
-        provider.GetService<CliViewService>().ShouldNotBeNull();
-        provider.GetService<CliScriptService>().ShouldNotBeNull();
-        provider.GetService<CliInteractiveShell>().ShouldNotBeNull();
-        provider.GetService<CliCommands>().ShouldNotBeNull();
+    public CliDIContainerTests()
+    {
+        var builder = Host.CreateApplicationBuilder();
+        CliDIContainer.ConfigureServices(builder.Services, ["--verbose"]);
+        _serviceProvider = builder.Services.BuildServiceProvider();
     }
 
-    /// <summary>指定された引数を用いて DI コンテナが正常に初期化されることを検証します。</summary>
+    /// <summary>ICashChangerDevice が VirtualMockDevice として解決されることを検証します。</summary>
     [Fact]
-    public void ShouldInitializeSuccessfully()
+    public void ICashChangerDeviceShouldResolveToVirtualMockDevice()
     {
         // Act
-        // This hits Initialize() and PostInitialize() with some args
-        var args = new[] { "--verbose", "--currency", "USD" };
-        CliDIContainer.Initialize(args);
-        CliDIContainer.PostInitialize(CliDIContainer.ServiceProvider, args);
+        var device = _serviceProvider.GetService<ICashChangerDevice>();
 
         // Assert
-        CliDIContainer.ServiceProvider.ShouldNotBeNull();
-        
-        var configProvider = CliDIContainer.Resolve<Core.Configuration.ConfigurationProvider>();
-        configProvider.ShouldNotBeNull();
-        configProvider.Config.System.CurrencyCode.ShouldBe("USD");
+        device.ShouldNotBeNull();
+        device.ShouldBeOfType<VirtualCashChangerDevice>();
     }
 
-    /// <summary>リゾルバサービスプロバイダを通じて依存関係を解決できることを検証します。</summary>
-    [Fact]
-    public void ResolverServiceProviderShouldResolveDependencies()
+    /// <summary>主要な CLI サービスが正常に解決されることを検証します。</summary>
+    [Theory]
+    [InlineData(typeof(CliDeviceService))]
+    [InlineData(typeof(CliCashService))]
+    [InlineData(typeof(CliViewService))]
+    [InlineData(typeof(CliCommands))]
+    [InlineData(typeof(CliInteractiveShell))]
+    public void ServicesShouldBeResolvable(Type serviceType)
     {
-        // Arrange
-        var builder = Host.CreateApplicationBuilder();
-        CliDIContainer.ConfigureServices(builder.Services, []);
-        var provider = builder.Services.BuildServiceProvider();
-
-        // This effectively instantiates the internal `CliResolverServiceProvider` indirectly,
-        // but we can explicitly test it by using the SimulatorServices abstraction.
-        CliDIContainer.Initialize([]);
-        
         // Act
-        var providerCasted = (IServiceProvider)Core.SimulatorServices.Provider!;
-        var config = Core.SimulatorServices.Provider!.Resolve<Core.Configuration.ConfigurationProvider>();
-        var obj = providerCasted.GetService(typeof(Core.Configuration.ConfigurationProvider));
+        var service = _serviceProvider.GetService(serviceType);
 
         // Assert
-        config.ShouldNotBeNull();
-        Assert.NotNull(obj);
+        service.ShouldNotBeNull();
     }
 }

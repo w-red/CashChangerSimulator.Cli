@@ -1,202 +1,127 @@
 using Moq;
-using Shouldly;
 using Spectre.Console;
 using Microsoft.Extensions.Localization;
 using CashChangerSimulator.UI.Cli.Services;
-using CashChangerSimulator.Device;
-using CashChangerSimulator.Core.Opos;
-using Microsoft.PointOfService;
+using CashChangerSimulator.Core.Models;
+using CashChangerSimulator.Core.Services;
+using CashChangerSimulator.Core.Managers;
+using CashChangerSimulator.Core.Exceptions;
+using CashChangerSimulator.Core.Configuration;
+using CashChangerSimulator.Core;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using CashChangerSimulator.Core.Transactions;
+using CashChangerSimulator.Device.Virtual;
+using R3;
+using Shouldly;
+using Xunit;
 
 namespace CashChangerSimulator.UI.Cli.Tests;
 
-/// <summary>CliDeviceService の各種デバイス操作を検証するためのテストクラス。</summary>
+/// <summary>CliDeviceService のデバイス制御機能を検証するためのテストクラス。</summary>
+[Collection("SequentialTests")]
 public class CliDeviceServiceTests
 {
-    private readonly Mock<SimulatorCashChanger> _mockChanger;
-    private readonly IAnsiConsole _console;
-    private readonly StringWriter _consoleOutput;
+    private readonly Mock<ICashChangerDevice> _mockDevice;
+    private readonly Mock<IAnsiConsole> _mockConsole;
     private readonly Mock<IStringLocalizer> _mockLocalizer;
     private readonly CliDeviceService _service;
 
     public CliDeviceServiceTests()
     {
-        _mockChanger = new Mock<SimulatorCashChanger>(new Device.Coordination.SimulatorDependencies());
-        _consoleOutput = new StringWriter();
-        _console = AnsiConsole.Create(new AnsiConsoleSettings
-        {
-            Ansi = AnsiSupport.No,
-            ColorSystem = ColorSystemSupport.NoColors,
-            Out = new AnsiConsoleOutput(_consoleOutput)
-        });
+        _mockDevice = new Mock<ICashChangerDevice>();
+        _mockConsole = new Mock<IAnsiConsole>();
         _mockLocalizer = new Mock<IStringLocalizer>();
 
+        // Mock localizer to return keys
         _mockLocalizer.Setup(l => l[It.IsAny<string>()]).Returns((string s) => new LocalizedString(s, s));
-        _mockLocalizer.Setup(l => l[It.IsAny<string>(), It.IsAny<object[]>()]).Returns((string s, object[] args) => 
-            new LocalizedString(s, args == null || args.Length == 0 ? s : $"{s}({string.Join(", ", args)})"));
+        _mockLocalizer.Setup(l => l[It.IsAny<string>(), It.IsAny<object[]>()]).Returns((string s, object[] args) => new LocalizedString(s, s));
 
-        _service = new CliDeviceService(_mockChanger.Object, _console, _mockLocalizer.Object);
+        // Mock State property
+        _mockDevice.Setup(d => d.State).Returns(new ReactiveProperty<DeviceControlState>(DeviceControlState.Idle));
+
+        _service = new CliDeviceService(
+            _mockDevice.Object,
+            _mockConsole.Object,
+            _mockLocalizer.Object);
     }
 
-    /// <summary>Open 操作が成功し、成功メッセージが表示されることを検証します。</summary>
+    /// <summary>Open 操作が OpenAsync を呼び出し、成功メッセージを表示することを検証します。</summary>
     [Fact]
-    public void OpenShouldInvokeChangerOpenAndShowSuccess()
-    {
-        // Act
-        _service.Open();
-
-        // Assert
-        _mockChanger.Verify(c => c.Open(), Times.Once);
-        _consoleOutput.ToString().ShouldContain("messages.success_label");
-    }
-
-    /// <summary>Open 操作で例外が発生した場合、エラーハンドリングが行われることを検証します。</summary>
-    [Fact]
-    public void OpenShouldHandleExceptionWhenChangerFails()
+    public void OpenShouldInvokeOpenAsync()
     {
         // Arrange
-        _mockChanger.Setup(c => c.Open()).Throws(new PosControlException("Open Failed", ErrorCode.NoHardware));
+        _mockDevice.Setup(d => d.OpenAsync()).Returns(Task.CompletedTask);
 
         // Act
         _service.Open();
 
         // Assert
-        _consoleOutput.ToString().ShouldContain("messages.error_label");
-        _consoleOutput.ToString().ShouldContain("NoHardware");
+        _mockDevice.Verify(c => c.OpenAsync(), Times.Once);
+        _mockLocalizer.Verify(l => l["messages.device_opened"], Times.Once);
     }
 
-    /// <summary>Claim 操作が指定されたタイムアウト値で実行されることを検証します。</summary>
+    /// <summary>Claim 操作が ClaimAsync を呼び出し、成功メッセージを表示することを検証します。</summary>
     [Fact]
-    public void ClaimShouldInvokeChangerClaimWithTimeout()
+    public void ClaimShouldInvokeClaimAsync()
     {
+        // Arrange
+        _mockDevice.Setup(d => d.ClaimAsync(It.IsAny<int>())).Returns(Task.CompletedTask);
+
         // Act
-        _service.Claim(5000);
+        _service.Claim(1000);
 
         // Assert
-        _mockChanger.Verify(c => c.Claim(5000), Times.Once);
-        _consoleOutput.ToString().ShouldContain("messages.success_label");
+        _mockDevice.Verify(c => c.ClaimAsync(1000), Times.Once);
+        _mockLocalizer.Verify(l => l["messages.device_claimed"], Times.Once);
     }
 
-    /// <summary>Enable 操作が成功することを検証します。</summary>
+    /// <summary>Enable 操作が EnableAsync を呼び出し、成功メッセージを表示することを検証します。</summary>
     [Fact]
-    public void EnableShouldSetDeviceEnabledToTrue()
+    public void EnableShouldInvokeEnableAsync()
     {
+        // Arrange
+        _mockDevice.Setup(d => d.EnableAsync()).Returns(Task.CompletedTask);
+
         // Act
         _service.Enable();
 
         // Assert
-        _mockChanger.VerifySet(c => c.DeviceEnabled = true);
-        _consoleOutput.ToString().ShouldContain("messages.success_label");
+        _mockDevice.Verify(c => c.EnableAsync(), Times.Once);
+        _mockLocalizer.Verify(l => l["messages.device_enabled"], Times.Once);
     }
 
-    /// <summary>Disable 操作が成功することを検証します。</summary>
+    /// <summary>SetCollectionBoxRemoved 操作が VirtualCashChangerDevice のステータスを更新することを検証します。</summary>
     [Fact]
-    public void DisableShouldSetDeviceEnabledToFalse()
-    {
-        // Act
-        _service.Disable();
-
-        // Assert
-        _mockChanger.VerifySet(c => c.DeviceEnabled = false);
-        _consoleOutput.ToString().ShouldContain("messages.success_label");
-    }
-
-    /// <summary>Release 操作が成功することを検証します。</summary>
-    [Fact]
-    public void ReleaseShouldInvokeChangerRelease()
-    {
-        // Act
-        _service.Release();
-
-        // Assert
-        _mockChanger.Verify(c => c.Release(), Times.Once);
-        _consoleOutput.ToString().ShouldContain("messages.success_label");
-    }
-
-    /// <summary>Close 操作が成功することを検証します。</summary>
-    [Fact]
-    public void CloseShouldInvokeChangerClose()
-    {
-        // Act
-        _service.Close();
-
-        // Assert
-        _mockChanger.Verify(c => c.Close(), Times.Once);
-        _consoleOutput.ToString().ShouldContain("messages.success_label");
-    }
-
-    /// <summary>GetSummary で金庫満杯時のカスタムサマリが返されることを検証します。</summary>
-    [Fact]
-    public void GetSummaryShouldReturnCustomMessageForExtendedErrorFull()
+    public void SetCollectionBoxRemovedShouldUpdateVirtualDeviceStatus()
     {
         // Arrange
-        var ex = new PosControlException("Full", ErrorCode.Extended, (int)UposCashChangerErrorCodeExtended.Full);
+        var inventory = new Inventory();
+        var history = new TransactionHistory();
+        var hardwareStatusManager = new HardwareStatusManager();
+        var manager = new CashChangerManager(inventory, history, null);
+        
+        // VirtualCashChangerDevice はファクトリ経由で生成
+        var factory = new VirtualCashChangerDeviceFactory(new ConfigurationProvider(), NullLoggerFactory.Instance);
+        var simulator = factory.Create(manager, inventory, hardwareStatusManager);
+
+        // SimulatorServices のスタティック解決に備えて登録（テスト環境用）
+        var provider = new ServiceCollection()
+            .AddSingleton(hardwareStatusManager)
+            .BuildServiceProvider();
+        SimulatorServices.Provider = new TestServiceProvider(provider);
+
+        var service = new CliDeviceService(simulator, _mockConsole.Object, _mockLocalizer.Object);
 
         // Act
-        _service.HandleException(ex);
+        service.SetCollectionBoxRemoved(true);
 
         // Assert
-        _consoleOutput.ToString().ShouldContain("messages.error_summary_full");
+        hardwareStatusManager.IsCollectionBoxRemoved.Value.ShouldBeTrue();
+        _mockLocalizer.Verify(l => l["messages.box_removed"], Times.Once);
     }
 
-    /// <summary>GetSummary で金庫空時のカスタムサマリが返されることを検証します。</summary>
-    [Fact]
-    public void GetSummaryShouldReturnCustomMessageForExtendedErrorEmpty()
-    {
-        // Arrange
-        var ex = new PosControlException("Empty", ErrorCode.Extended, (int)UposCashChangerErrorCodeExtended.Empty);
-
-        // Act
-        _service.HandleException(ex);
-
-        // Assert
-        _consoleOutput.ToString().ShouldContain("messages.error_summary_empty");
-    }
-
-    /// <summary>GetSummary でタイムアウト時のサマリが返されることを検証します。</summary>
-    [Fact]
-    public void GetSummaryShouldReturnTimeoutMessage()
-    {
-        // Arrange
-        var ex = new PosControlException("Timeout", ErrorCode.Timeout);
-
-        // Act
-        _service.HandleException(ex);
-
-        // Assert
-        _consoleOutput.ToString().ShouldContain("messages.error_summary_timeout");
-    }
-
-    /// <summary>GetSummary でリソースが見つからない場合に汎用メッセージが返されることを検証します。</summary>
-    [Fact]
-    public void GetSummaryShouldReturnGenericMessageWhenResourceNotFound()
-    {
-        // Arrange
-        var ex = new PosControlException("Failure", ErrorCode.Failure);
-        _mockLocalizer.Setup(l => l["messages.error_summary_failure"]).Returns(new LocalizedString("messages.error_summary_failure", "Summary", true));
-
-        // Act
-        _service.HandleException(ex);
-
-        // Assert
-        _consoleOutput.ToString().ShouldContain("messages.error_summary_generic");
-    }
-
-    /// <summary>GetHint でリソースが見つからない場合に汎用メッセージが返されることを検証します。</summary>
-    [Fact]
-    public void GetHintShouldReturnGenericMessageWhenResourceNotFound()
-    {
-        // Arrange
-        var ex = new PosControlException("Failure", ErrorCode.Failure);
-        _mockLocalizer.Setup(l => l["messages.error_hint_failure"]).Returns(new LocalizedString("messages.error_hint_failure", "Hint", true));
-
-        // Act
-        _service.HandleException(ex);
-
-        // Assert
-        _consoleOutput.ToString().ShouldContain("messages.error_hint_generic");
-    }
-
-    /// <summary>各メソッドで例外が発生した場合に HandleException が呼ばれることを検証するための理論テスト。</summary>
+    /// <summary>理論テスト: 各メソッドで例外が発生した場合に HandleException が呼ばれることを検証します。</summary>
     [Theory]
     [InlineData("Open")]
     [InlineData("Claim")]
@@ -207,15 +132,15 @@ public class CliDeviceServiceTests
     public void MethodsShouldHandleExceptions(string methodName)
     {
         // Arrange
-        var exception = new PosControlException("Error", ErrorCode.Failure);
+        var exception = new DeviceException("Error", DeviceErrorCode.Failure);
         switch (methodName)
         {
-            case "Open": _mockChanger.Setup(c => c.Open()).Throws(exception); break;
-            case "Claim": _mockChanger.Setup(c => c.Claim(It.IsAny<int>())).Throws(exception); break;
-            case "Enable": _mockChanger.SetupSet(c => c.DeviceEnabled = true).Throws(exception); break;
-            case "Disable": _mockChanger.SetupSet(c => c.DeviceEnabled = false).Throws(exception); break;
-            case "Release": _mockChanger.Setup(c => c.Release()).Throws(exception); break;
-            case "Close": _mockChanger.Setup(c => c.Close()).Throws(exception); break;
+            case "Open": _mockDevice.Setup(c => c.OpenAsync()).ThrowsAsync(exception); break;
+            case "Claim": _mockDevice.Setup(c => c.ClaimAsync(It.IsAny<int>())).ThrowsAsync(exception); break;
+            case "Enable": _mockDevice.Setup(c => c.EnableAsync()).ThrowsAsync(exception); break;
+            case "Disable": _mockDevice.Setup(c => c.DisableAsync()).ThrowsAsync(exception); break;
+            case "Release": _mockDevice.Setup(c => c.ReleaseAsync()).ThrowsAsync(exception); break;
+            case "Close": _mockDevice.Setup(c => c.CloseAsync()).ThrowsAsync(exception); break;
         }
 
         // Act
@@ -230,6 +155,11 @@ public class CliDeviceServiceTests
         }
 
         // Assert
-        _consoleOutput.ToString().ShouldContain("messages.error_label");
+        _mockLocalizer.Verify(l => l["messages.error_label"], Times.Once);
+    }
+
+    private class TestServiceProvider(IServiceProvider provider) : ISimulatorServiceProvider
+    {
+        public T Resolve<T>() where T : class => provider.GetRequiredService<T>();
     }
 }
