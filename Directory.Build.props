@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <Authors>w-red TERASHI, yohei</Authors>
+    <PackageProjectUrl>https://github.com/w-red/CashChangerSimulator.Cli</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/w-red/CashChangerSimulator.Cli</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright (c) 2026 w-red TERASHI, yohei</Copyright>
+    <PackageTags>Simulator;POS;CashChanger;UPOS;CLI</PackageTags>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+</Project>
