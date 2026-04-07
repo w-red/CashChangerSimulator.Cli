@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Localization;
 
-namespace CashChangerSimulator.UI.Cli.Localization;
+namespace CashChangerSimulator.Cli.Localization;
 
 /// <summary>TOML 形式のローカライゼーションサービスを作成するファクトリ。</summary>
 public class TomlStringLocalizerFactory : IStringLocalizerFactory

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Localization;
 using Tomlyn;
 using Tomlyn.Model;
 
-namespace CashChangerSimulator.UI.Cli.Localization;
+namespace CashChangerSimulator.Cli.Localization;
 
 /// <summary>TOML ファイルを使用してローカライズされた文字列を提供するローカライザー。</summary>
 /// <remarks>
@@ -99,7 +99,7 @@ public class TomlStringLocalizer(string basePath) : IStringLocalizer
             // Fallback to language only (e.g. ja-JP -> ja)
             var lang = culture.Split('-')[0];
             path = Path.Combine(_basePath, $"cli.{lang}.toml");
-            
+
             // Further fallback to en-US
             if (!File.Exists(path))
             {
