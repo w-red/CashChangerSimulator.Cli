@@ -142,7 +142,7 @@ public class CliCashService : CliServiceBase
                 _device.BeginDepositAsync().GetAwaiter().GetResult();
                 _device.FixDepositAsync().GetAwaiter().GetResult();
                 ShowDepositTray();
-                _device.EndDepositAsync(DepositAction.Store).GetAwaiter().GetResult();
+                _device.EndDepositAsync(DepositAction.NoChange).GetAwaiter().GetResult();
                 ReportSuccess(_L["messages.deposit_completed"]);
             }
         }
@@ -173,7 +173,7 @@ public class CliCashService : CliServiceBase
         try
         {
             ShowDepositTray();
-            _device.EndDepositAsync(DepositAction.Store).GetAwaiter().GetResult();
+            _device.EndDepositAsync(DepositAction.NoChange).GetAwaiter().GetResult();
             ReportSuccess(_L["messages.end_deposit_completed"]);
         }
         catch (Exception ex)
