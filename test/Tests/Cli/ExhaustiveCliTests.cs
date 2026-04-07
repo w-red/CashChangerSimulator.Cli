@@ -53,6 +53,20 @@ public class ExhaustiveCliTests
         // 1. まず標準サービスをすべて登録する
         CliDIContainer.ConfigureServices(services, ["--verbose"]);
 
+        // テストごとに一意な Mutex 名を使用するように ICashChangerDevice を再登録
+        var testMutexName = $"Local\\CashChangerSimulator_Exhaustive_{Guid.NewGuid()}";
+        services.AddSingleton<ICashChangerDevice>(sp =>
+        {
+            var factory = (VirtualCashChangerDeviceFactory)sp.GetRequiredService<ICashChangerDeviceFactory>();
+            var manager = sp.GetRequiredService<CashChangerManager>();
+            var statusManager = sp.GetRequiredService<HardwareStatusManager>();
+            var inventory = sp.GetRequiredService<Inventory>();
+            
+            var device = (VirtualCashChangerDevice)factory.Create(manager, inventory, statusManager, testMutexName);
+            device.OpenAsync().GetAwaiter().GetResult();
+            return device;
+        });
+
         // 2. テストで検証が必要なサービスだけをモックに差し替える
         // (ConfigureServices の後に AddSingleton することで、後の登録が優先される)
         services.AddSingleton(_consoleMock.Object);
@@ -93,21 +107,29 @@ public class ExhaustiveCliTests
         await dispatcher.DispatchAsync("claim 5000");
         Thread.Sleep(500); // Wait for claim
         await dispatcher.DispatchAsync("enable");
-        Thread.Sleep(500); // Wait for enable
-        await dispatcher.DispatchAsync("disable");
-        await dispatcher.DispatchAsync("release");
+        // Cash
+        await dispatcher.DispatchAsync("read-counts");
+        await dispatcher.DispatchAsync("adjust-counts 1000:10");
+        inventory.GetCount(new DenominationKey(1000, CurrencyCashType.Bill, "JPY")).ShouldBe(10);
 
-        // View
+        // Lifecycle & View
+        await dispatcher.DispatchAsync("open");
+        await dispatcher.DispatchAsync("claim 5000");
+        await dispatcher.DispatchAsync("enable");
+        Thread.Sleep(500); // Wait for enable state transition
+        
         await dispatcher.DispatchAsync("status");
         await dispatcher.DispatchAsync("history 5");
         await dispatcher.DispatchAsync("export-history out.csv");
         _exportServiceMock.Verify(s => s.Export(It.IsAny<IEnumerable<TransactionEntry>>()), Times.Once);
 
-        // Cash
-        await dispatcher.DispatchAsync("read-counts");
-        await dispatcher.DispatchAsync("adjust-counts 1000:10");
-        Thread.Sleep(500); // Allow FireAndForget to finish
-        inventory.GetCount(new DenominationKey(1000, CurrencyCashType.Bill, "JPY")).ShouldBe(10);
+        await dispatcher.DispatchAsync("disable");
+        await dispatcher.DispatchAsync("release");
+
+        // 後続の deposit 等のために再度有効化
+        await dispatcher.DispatchAsync("claim 5000");
+        await dispatcher.DispatchAsync("enable");
+        Thread.Sleep(500);
 
         await dispatcher.DispatchAsync("deposit 1000"); // Sync deposit
         await dispatcher.DispatchAsync("fix-deposit");
