@@ -1,6 +1,6 @@
 using Shouldly;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>CLI のオートコンプリート機能を検証するテストクラス。</summary>
 public class CliAutoCompleteHandlerTests

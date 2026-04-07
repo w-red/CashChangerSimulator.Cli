@@ -1,6 +1,6 @@
 using CashChangerSimulator.Core.Configuration;
 
-namespace CashChangerSimulator.UI.Cli;
+namespace CashChangerSimulator.Cli;
 
 /// <summary>
 /// CLI環境専用の ConfigurationProvider。

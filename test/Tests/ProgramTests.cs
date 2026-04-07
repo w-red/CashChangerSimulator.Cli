@@ -1,7 +1,7 @@
 using Shouldly;
 using System.Globalization;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>Program クラスのグローバルオプション解析機能を検証するためのテストクラス。</summary>
 public class ProgramTests

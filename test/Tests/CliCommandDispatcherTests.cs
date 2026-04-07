@@ -1,5 +1,5 @@
 using Moq;
-using CashChangerSimulator.UI.Cli.Services;
+using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Core;
 using CashChangerSimulator.Core.Models;
 using CashChangerSimulator.Core.Services;
@@ -8,7 +8,7 @@ using Spectre.Console;
 using Microsoft.Extensions.Localization;
 using R3;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>CliCommandDispatcher のディスパッチ機能を検証するためのテストクラス。</summary>
 public class CliCommandDispatcherTests

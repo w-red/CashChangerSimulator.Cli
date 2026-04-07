@@ -1,13 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using CashChangerSimulator.UI.Cli.Services;
+using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Core.Services;
 using CashChangerSimulator.Core.Managers;
 using CashChangerSimulator.Device.Virtual;
 using Shouldly;
 using Xunit;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>CliDIContainer の依存関係注入設定を検証するためのテストクラス。</summary>
 public class CliDIContainerTests

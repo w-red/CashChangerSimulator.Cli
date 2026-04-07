@@ -1,7 +1,7 @@
 using Shouldly;
 using Spectre.Console.Testing;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>CLI の通知サービスを検証するテストクラス。</summary>
 public class CliNotifyServiceTests

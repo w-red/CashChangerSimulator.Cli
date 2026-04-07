@@ -1,7 +1,7 @@
 using Moq;
 using Spectre.Console;
 using Microsoft.Extensions.Localization;
-using CashChangerSimulator.UI.Cli.Services;
+using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Core.Models;
 using CashChangerSimulator.Core.Services;
 using CashChangerSimulator.Core.Transactions;
@@ -9,7 +9,7 @@ using R3;
 using Shouldly;
 using Xunit;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>CliViewService の表示機能を検証するためのテストクラス。</summary>
 public class CliViewServiceTests

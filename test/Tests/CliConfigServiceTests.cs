@@ -2,10 +2,10 @@ using Moq;
 using Shouldly;
 using Spectre.Console;
 using Microsoft.Extensions.Localization;
-using CashChangerSimulator.UI.Cli.Services;
+using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Core.Configuration;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>CliConfigService の設定操作を検証するためのテストクラス。</summary>
 public class CliConfigServiceTests

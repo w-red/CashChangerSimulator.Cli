@@ -5,13 +5,13 @@ using CashChangerSimulator.Core.Services;
 using CashChangerSimulator.Core.Services.DeviceEventTypes;
 using Spectre.Console;
 using Microsoft.Extensions.Localization;
-using CashChangerSimulator.UI.Cli.Services;
+using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Core;
 using R3;
 
-[assembly: InternalsVisibleTo("CashChangerSimulator.UI.Cli.Tests")]
+[assembly: InternalsVisibleTo("CashChangerSimulator.Cli.Tests")]
 
-namespace CashChangerSimulator.UI.Cli;
+namespace CashChangerSimulator.Cli;
 
 /// <summary>CLI からシミュレータを操作するためのコマンドを提供します。</summary>
 public partial class CliCommands : IDisposable

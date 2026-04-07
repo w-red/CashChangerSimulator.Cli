@@ -1,7 +1,7 @@
 using Moq;
 using Spectre.Console;
 using Microsoft.Extensions.Localization;
-using CashChangerSimulator.UI.Cli.Services;
+using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Core.Services;
 using CashChangerSimulator.Core.Services.DeviceEventTypes;
 using CashChangerSimulator.Core.Models;
@@ -17,7 +17,7 @@ using CashChangerSimulator.Core.Transactions;
 using CashChangerSimulator.Device.Virtual.Services;
 using Spectre.Console.Testing;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>CliInteractiveShell の対話型コマンド実行サイクルを検証するためのテストクラス。</summary>
 public class CliInteractiveShellTests

@@ -1,7 +1,7 @@
 using CashChangerSimulator.Device.Virtual;
 using CashChangerSimulator.Core.Configuration;
 
-namespace CashChangerSimulator.UI.Cli;
+namespace CashChangerSimulator.Cli;
 
 /// <summary>CLI環境専用の HardwareSimulator 派生クラス。</summary>
 public class CliHardwareSimulator : HardwareSimulator

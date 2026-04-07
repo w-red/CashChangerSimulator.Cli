@@ -1,4 +1,4 @@
-namespace CashChangerSimulator.UI.Cli;
+namespace CashChangerSimulator.Cli;
 
 public class CliSessionOptions
 {

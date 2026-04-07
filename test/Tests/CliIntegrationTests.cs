@@ -3,7 +3,7 @@ using Shouldly;
 using Spectre.Console.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
-using CashChangerSimulator.UI.Cli.Services;
+using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Core.Models;
 using CashChangerSimulator.Core;
 using CashChangerSimulator.Core.Configuration;
@@ -15,7 +15,7 @@ using Spectre.Console;
 using R3;
 using Xunit;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>CLI アプリケーションの統合動作を検証するためのテストクラス。</summary>
 [Collection("SequentialTests")]

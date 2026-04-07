@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>CLI テストを順次実行するためのコレクション定義です。</summary>
 [CollectionDefinition("SequentialTests")]

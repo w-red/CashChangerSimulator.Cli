@@ -7,13 +7,13 @@ using CashChangerSimulator.Core.Services;
 using CashChangerSimulator.Core.Transactions;
 using CashChangerSimulator.Device.Virtual;
 using CashChangerSimulator.Device.Virtual.Services;
-using CashChangerSimulator.UI.Cli.Services;
-using CashChangerSimulator.UI.Cli.Localization;
+using CashChangerSimulator.Cli.Services;
+using CashChangerSimulator.Cli.Localization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 
-namespace CashChangerSimulator.UI.Cli;
+namespace CashChangerSimulator.Cli;
 
 public static class CliDIContainer
 {

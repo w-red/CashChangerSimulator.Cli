@@ -1,8 +1,8 @@
 using System.Globalization;
-using CashChangerSimulator.UI.Cli.Localization;
+using CashChangerSimulator.Cli.Localization;
 using Shouldly;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>TomlStringLocalizer のローカライズ機能を検証するためのテストクラス。</summary>
 public class TomlStringLocalizerTests : IDisposable

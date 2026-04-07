@@ -2,12 +2,12 @@ using Moq;
 using Spectre.Console;
 using Spectre.Console.Testing;
 using Microsoft.Extensions.Localization;
-using CashChangerSimulator.UI.Cli.Services;
+using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Device.Virtual.Services;
 using Shouldly;
 using Xunit;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>CliScriptService のスクリプト実行機能を検証するためのテストクラス。</summary>
 public class CliScriptServiceTests

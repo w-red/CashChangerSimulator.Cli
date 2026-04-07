@@ -1,9 +1,9 @@
 using System.Globalization;
 using Cocona;
 using Microsoft.Extensions.DependencyInjection;
-using CashChangerSimulator.UI.Cli.Services;
+using CashChangerSimulator.Cli.Services;
 
-namespace CashChangerSimulator.UI.Cli;
+namespace CashChangerSimulator.Cli;
 
 /// <summary>CLI アプリケーションのメインエントリポイントを提供します。</summary>
 public class Program

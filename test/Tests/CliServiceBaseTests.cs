@@ -2,13 +2,13 @@ using Moq;
 using Spectre.Console;
 using Spectre.Console.Testing;
 using Microsoft.Extensions.Localization;
-using CashChangerSimulator.UI.Cli.Services;
+using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Core.Exceptions;
 using CashChangerSimulator.Core.Models;
 using Shouldly;
 using Xunit;
 
-namespace CashChangerSimulator.UI.Cli.Tests;
+namespace CashChangerSimulator.Cli.Tests;
 
 /// <summary>CliServiceBase の共通エラー処理およびレポート機能を検証するためのテストクラス。</summary>
 public class CliServiceBaseTests
