@@ -1,4 +1,4 @@
-namespace CashChangerSimulator.UI.Cli.Services;
+namespace CashChangerSimulator.Cli.Services;
 
 /// <summary><see cref="ICliCommandDispatcher"/> の実装クラス。</summary>
 public class CliCommandDispatcher(CliCommands commands) : ICliCommandDispatcher

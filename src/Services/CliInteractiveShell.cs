@@ -4,7 +4,7 @@ using CashChangerSimulator.Core.Services;
 using CashChangerSimulator.Core.Models;
 using R3;
 
-namespace CashChangerSimulator.UI.Cli.Services;
+namespace CashChangerSimulator.Cli.Services;
 
 /// <summary>CLI の対話型ループ (REPL) を制御するクラス。</summary>
 public class CliInteractiveShell(
@@ -64,7 +64,7 @@ public class CliInteractiveShell(
             {
                 _console.MarkupLine(_L["messages.error_prefix", ex.Message]);
             }
-            
+
             // Give some time for async operations or UI updates if needed
             await Task.Delay(100);
         }
@@ -93,21 +93,21 @@ public class CliInteractiveShell(
 
     private void SetupReadLine()
     {
-        var commandList = new[] { 
-            "open", "claim", "enable", "disable", "status", "read-counts", 
-            "deposit", "fix-deposit", "end-deposit", "dispense", "adjust-counts", 
-            "history", "release", "close", "run-script", 
+        var commandList = new[] {
+            "open", "claim", "enable", "disable", "status", "read-counts",
+            "deposit", "fix-deposit", "end-deposit", "dispense", "adjust-counts",
+            "history", "release", "close", "run-script",
             "config", "config list", "config get", "config set", "config save", "config reload",
             "log-level", "log-level Debug", "log-level Information", "log-level Warning", "log-level Error",
-            "help", "exit", "quit" 
+            "help", "exit", "quit"
         };
         ReadLine.AutoCompletionHandler = new CliAutoCompleteHandler(commandList);
         ReadLine.HistoryEnabled = true;
     }
 
     private string GetHistoryFile() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), 
-        "CashChangerSimulator", 
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "CashChangerSimulator",
         "cli_history.txt");
 
     private void SetupHistory()

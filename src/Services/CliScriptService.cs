@@ -2,7 +2,7 @@ using Spectre.Console;
 using Microsoft.Extensions.Localization;
 using CashChangerSimulator.Device.Virtual.Services;
 
-namespace CashChangerSimulator.UI.Cli.Services;
+namespace CashChangerSimulator.Cli.Services;
 
 /// <summary>シミュレーションスクリプトの実行を管理するサービス。</summary>
 /// <param name="scriptExecutionService">スクリプトの解析と低レベル実行を担当するサービス。</param>

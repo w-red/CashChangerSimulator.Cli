@@ -4,7 +4,7 @@ using Spectre.Console;
 using Microsoft.Extensions.Localization;
 using CashChangerSimulator.Core.Configuration;
 
-namespace CashChangerSimulator.UI.Cli.Services;
+namespace CashChangerSimulator.Cli.Services;
 
 public class CliConfigService(
     ConfigurationProvider configProvider,

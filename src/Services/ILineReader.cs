@@ -1,11 +1,11 @@
-namespace CashChangerSimulator.UI.Cli.Services;
+namespace CashChangerSimulator.Cli.Services;
 
 /// <summary>行単位の入力を抽象化するインターフェース。</summary>
 public interface ILineReader
 {
     /// <summary>プロンプトを表示して一行読み取ります。</summary>
     string Read(string prompt);
-    
+
     /// <summary>履歴を入力に追加します。</summary>
     void AddHistory(params string[] history);
 }

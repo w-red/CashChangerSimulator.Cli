@@ -6,7 +6,7 @@ using Microsoft.Extensions.Localization;
 using CashChangerSimulator.Core;
 using CashChangerSimulator.Device.Virtual;
 
-namespace CashChangerSimulator.UI.Cli.Services;
+namespace CashChangerSimulator.Cli.Services;
 
 public class CliDeviceService(
     ICashChangerDevice device,
@@ -113,7 +113,7 @@ public class CliDeviceService(
             {
                 // Note: Use the simulator's own hardware status directly to ensure we are targeting the correct instance.
                 simulator.HardwareStatus.SetCollectionBoxRemoved(removed);
-                
+
                 var msg = removed ? _L["messages.box_removed"] : _L["messages.box_inserted"];
                 ReportSuccess(msg);
             }

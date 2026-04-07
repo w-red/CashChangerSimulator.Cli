@@ -6,7 +6,7 @@ using Spectre.Console;
 using Microsoft.Extensions.Localization;
 using R3;
 
-namespace CashChangerSimulator.UI.Cli.Services;
+namespace CashChangerSimulator.Cli.Services;
 
 public class CliCashService : CliServiceBase
 {
@@ -67,7 +67,7 @@ public class CliCashService : CliServiceBase
             HandleException(ex);
         }
     }
-    
+
     /// <summary>入金トレイ（Escrow）の状態を表示します。</summary>
     public virtual void ShowDepositTray()
     {
@@ -109,9 +109,9 @@ public class CliCashService : CliServiceBase
             // Note: If RequiredAmount property exists in simulator, use it
             // Assuming for now it is handled internally or we expose it.
         }
-        
+
         var remaining = Math.Max(0, required - trayTotal);
-        
+
         var caption = $"{_L["messages.total_caption"]}: {prefix}{trayTotal:N0}{suffix}";
         if (required > 0)
         {

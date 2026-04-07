@@ -4,7 +4,7 @@ using CashChangerSimulator.Core.Transactions;
 using CashChangerSimulator.Core.Opos;
 using R3;
 
-namespace CashChangerSimulator.UI.Cli.Services;
+namespace CashChangerSimulator.Cli.Services;
 
 /// <summary>
 /// ICashChangerDevice から発行される R3 イベントを購読し、

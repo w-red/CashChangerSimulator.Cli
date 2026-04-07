@@ -5,7 +5,7 @@ using CashChangerSimulator.Core.Transactions;
 using CashChangerSimulator.Core.Services;
 using R3;
 
-namespace CashChangerSimulator.UI.Cli.Services;
+namespace CashChangerSimulator.Cli.Services;
 
 public class CliViewService : CliServiceBase
 {
@@ -37,7 +37,7 @@ public class CliViewService : CliServiceBase
         _console.Write(new Rule($"[cyan]{_L["messages.status_header"]}[/]").LeftJustified());
         var state = _device.State.CurrentValue;
         _console.MarkupLine($"{_L["messages.state_label"]}: [yellow]{state}[/]");
-        
+
         var isOpen = state != DeviceControlState.Closed && state != DeviceControlState.None;
         _console.MarkupLine($"{_L["messages.enabled_label"]}: {(isOpen ? "[green]True[/]" : "[red]False[/]")}");
 
