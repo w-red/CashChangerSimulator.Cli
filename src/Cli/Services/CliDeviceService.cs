@@ -1,22 +1,26 @@
-using Microsoft.PointOfService;
+using CashChangerSimulator.Core.Models;
+using CashChangerSimulator.Core.Services;
+using CashChangerSimulator.Core.Managers;
 using Spectre.Console;
 using Microsoft.Extensions.Localization;
-using CashChangerSimulator.Device;
+using CashChangerSimulator.Core;
+using CashChangerSimulator.Device.Virtual;
 
 namespace CashChangerSimulator.UI.Cli.Services;
 
 public class CliDeviceService(
-    SimulatorCashChanger changer,
+    ICashChangerDevice device,
     IAnsiConsole console,
     IStringLocalizer localizer) : CliServiceBase(console, localizer)
 {
-    private readonly SimulatorCashChanger _changer = changer;
+    private readonly ICashChangerDevice _device = device;
 
+    /// <summary>デバイスをオープンします。</summary>
     public virtual void Open()
     {
         try
         {
-            _changer.Open();
+            _device.OpenAsync().GetAwaiter().GetResult();
             ReportSuccess(_L["messages.device_opened"]);
         }
         catch (Exception ex)
@@ -25,11 +29,13 @@ public class CliDeviceService(
         }
     }
 
+    /// <summary>デバイスを占有します。</summary>
+    /// <param name="timeout">タイムアウト(ms)。</param>
     public virtual void Claim(int timeout)
     {
         try
         {
-            _changer.Claim(timeout);
+            _device.ClaimAsync(timeout).GetAwaiter().GetResult();
             ReportSuccess(_L["messages.device_claimed"]);
         }
         catch (Exception ex)
@@ -38,11 +44,12 @@ public class CliDeviceService(
         }
     }
 
+    /// <summary>デバイスを有効化します。</summary>
     public virtual void Enable()
     {
         try
         {
-            _changer.DeviceEnabled = true;
+            _device.EnableAsync().GetAwaiter().GetResult();
             ReportSuccess(_L["messages.device_enabled"]);
         }
         catch (Exception ex)
@@ -51,11 +58,12 @@ public class CliDeviceService(
         }
     }
 
+    /// <summary>デバイスを無効化します。</summary>
     public virtual void Disable()
     {
         try
         {
-            _changer.DeviceEnabled = false;
+            _device.DisableAsync().GetAwaiter().GetResult();
             ReportSuccess(_L["messages.device_disabled"]);
         }
         catch (Exception ex)
@@ -64,11 +72,12 @@ public class CliDeviceService(
         }
     }
 
+    /// <summary>デバイスの占有を解除します。</summary>
     public virtual void Release()
     {
         try
         {
-            _changer.Release();
+            _device.ReleaseAsync().GetAwaiter().GetResult();
             ReportSuccess(_L["messages.device_released"]);
         }
         catch (Exception ex)
@@ -77,11 +86,12 @@ public class CliDeviceService(
         }
     }
 
+    /// <summary>デバイスをクローズします。</summary>
     public virtual void Close()
     {
         try
         {
-            _changer.Close();
+            _device.CloseAsync().GetAwaiter().GetResult();
             ReportSuccess(_L["messages.device_closed"]);
         }
         catch (Exception ex)
@@ -90,13 +100,27 @@ public class CliDeviceService(
         }
     }
 
+    /// <summary>回収庫の取り外し状態を設定します。</summary>
+    /// <param name="removed">取り外されている場合は true。</param>
     public virtual void SetCollectionBoxRemoved(bool removed)
     {
         try
         {
-            _changer.HardwareStatus.SetCollectionBoxRemoved(removed);
-            var msg = removed ? _L["messages.box_removed"] : _L["messages.box_inserted"];
-            ReportSuccess(msg);
+            // Note: VirtualCashChangerDevice (ICashChangerDevice) might need an extension to allow simulator-specific controls
+            // if they are not part of the standard interface.
+            // For now, if we cannot access specialized hardware status, we report not supported or cast if safe.
+            if (_device is VirtualCashChangerDevice simulator)
+            {
+                // Note: Use the simulator's own hardware status directly to ensure we are targeting the correct instance.
+                simulator.HardwareStatus.SetCollectionBoxRemoved(removed);
+                
+                var msg = removed ? _L["messages.box_removed"] : _L["messages.box_inserted"];
+                ReportSuccess(msg);
+            }
+            else
+            {
+                _console.MarkupLine("[yellow]Collection box control is only supported on virtual devices.[/]");
+            }
         }
         catch (Exception ex)
         {
@@ -104,22 +128,15 @@ public class CliDeviceService(
         }
     }
 
+    /// <summary>回収庫の状態をリセット（挿入状態）にします。</summary>
     public virtual void ResetBox()
     {
-        try
-        {
-            _changer.HardwareStatus.SetCollectionBoxRemoved(false);
-            ReportSuccess(_L["messages.box_reset"]);
-        }
-        catch (Exception ex)
-        {
-            HandleException(ex);
-        }
+        SetCollectionBoxRemoved(false);
     }
 
-    protected override string GetSummary(ErrorCode errorCode, int errorCodeExtended = 0)
+    protected override string GetSummary(DeviceErrorCode errorCode, int errorCodeExtended = 0)
     {
-        if (errorCode == ErrorCode.Extended)
+        if (errorCode == DeviceErrorCode.Extended)
         {
             // UPOS Standard: Full = 206, Empty = 205
             if (errorCodeExtended == 206) return (string)_L["messages.error_summary_full"];
@@ -130,18 +147,18 @@ public class CliDeviceService(
         var summary = _L[summaryKey];
         if (summary.ResourceNotFound)
         {
-            return errorCode == ErrorCode.Illegal && !_changer.DeviceEnabled ? (string)_L["messages.error_summary_illegal"] : (string)_L["messages.error_summary_generic"];
+            return (string)_L["messages.error_summary_generic"];
         }
         return summary;
     }
 
-    protected override string GetHint(ErrorCode errorCode, int errorCodeExtended = 0)
+    protected override string GetHint(DeviceErrorCode errorCode, int errorCodeExtended = 0)
     {
         var hintKey = $"messages.error_hint_{errorCode.ToString().ToLowerInvariant()}";
         var hint = _L[hintKey];
         if (hint.ResourceNotFound)
         {
-            return errorCode == ErrorCode.Illegal && !_changer.DeviceEnabled ? (string)_L["messages.error_hint_notenabled"] : (string)_L["messages.error_hint_generic"];
+            return (string)_L["messages.error_hint_generic"];
         }
         return hint;
     }

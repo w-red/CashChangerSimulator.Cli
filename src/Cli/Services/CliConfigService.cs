@@ -13,6 +13,7 @@ public class CliConfigService(
 {
     private readonly ConfigurationProvider _configProvider = configProvider;
 
+    /// <summary>設定項目を一覧表示します。</summary>
     public virtual void List()
     {
         _console.Write(new Rule($"[cyan]{_L["messages.config_header"]}[/]").LeftJustified());
@@ -46,6 +47,8 @@ public class CliConfigService(
         }
     }
 
+    /// <summary>特定の設定値を取得します。</summary>
+    /// <param name="key">設定キー（例: "Device.Name"）。</param>
     public virtual void Get(string key)
     {
         var result = GetPropertyByPath(_configProvider.Config, key);
@@ -59,6 +62,9 @@ public class CliConfigService(
         }
     }
 
+    /// <summary>設定値を更新します。</summary>
+    /// <param name="key">設定キー。</param>
+    /// <param name="value">新しい値。</param>
     public virtual void Set(string key, string value)
     {
         var result = SetPropertyByPath(_configProvider.Config, key, value);
@@ -72,6 +78,7 @@ public class CliConfigService(
         }
     }
 
+    /// <summary>現在の設定値を TOML ファイルに保存します。</summary>
     public virtual void Save()
     {
         try
@@ -85,6 +92,7 @@ public class CliConfigService(
         }
     }
 
+    /// <summary>設定をファイルから再読み込みします。</summary>
     public virtual void Reload()
     {
         try

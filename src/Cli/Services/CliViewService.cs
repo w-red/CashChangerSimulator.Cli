@@ -1,22 +1,22 @@
 using Spectre.Console;
 using Microsoft.Extensions.Localization;
-using CashChangerSimulator.Device;
 using CashChangerSimulator.Core.Models;
 using CashChangerSimulator.Core.Transactions;
 using CashChangerSimulator.Core.Services;
+using R3;
 
 namespace CashChangerSimulator.UI.Cli.Services;
 
 public class CliViewService : CliServiceBase
 {
-    private readonly SimulatorCashChanger _changer;
+    private readonly ICashChangerDevice _device;
     private readonly Inventory _inventory;
     private readonly ICurrencyMetadataProvider _metadata;
     private readonly TransactionHistory _history;
     private readonly IHistoryExportService _exportService;
 
     public CliViewService(
-        SimulatorCashChanger changer,
+        ICashChangerDevice device,
         Inventory inventory,
         ICurrencyMetadataProvider metadata,
         TransactionHistory history,
@@ -24,18 +24,22 @@ public class CliViewService : CliServiceBase
         IAnsiConsole console,
         IStringLocalizer localizer) : base(console, localizer)
     {
-        _changer = changer;
+        _device = device;
         _inventory = inventory;
         _metadata = metadata;
         _history = history;
         _exportService = exportService;
     }
 
+    /// <summary>デバイスの状態と現在の在高を表示します。</summary>
     public virtual void Status()
     {
         _console.Write(new Rule($"[cyan]{_L["messages.status_header"]}[/]").LeftJustified());
-        _console.MarkupLine($"{_L["messages.state_label"]}: [yellow]{_changer.State}[/]");
-        _console.MarkupLine($"{_L["messages.enabled_label"]}: {(_changer.DeviceEnabled ? "[green]True[/]" : "[red]False[/]")}");
+        var state = _device.State.CurrentValue;
+        _console.MarkupLine($"{_L["messages.state_label"]}: [yellow]{state}[/]");
+        
+        var isOpen = state != DeviceControlState.Closed && state != DeviceControlState.None;
+        _console.MarkupLine($"{_L["messages.enabled_label"]}: {(isOpen ? "[green]True[/]" : "[red]False[/]")}");
 
         _console.WriteLine();
         _console.Write(new Rule($"[cyan]{_L["messages.inventory_header"]}[/]").LeftJustified());
@@ -58,6 +62,8 @@ public class CliViewService : CliServiceBase
         _console.Write(table);
     }
 
+    /// <summary>取引履歴を表示します。</summary>
+    /// <param name="count">表示件数。</param>
     public virtual void History(int count)
     {
         _console.Write(new Rule($"[cyan]{_L["messages.transaction_history_header", count]}[/]").LeftJustified());

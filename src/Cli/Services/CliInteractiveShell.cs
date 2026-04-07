@@ -1,20 +1,22 @@
 using Spectre.Console;
 using Microsoft.Extensions.Localization;
-using CashChangerSimulator.Device;
+using CashChangerSimulator.Core.Services;
+using CashChangerSimulator.Core.Models;
+using R3;
 
 namespace CashChangerSimulator.UI.Cli.Services;
 
 /// <summary>CLI の対話型ループ (REPL) を制御するクラス。</summary>
 public class CliInteractiveShell(
     ICliCommandDispatcher dispatcher,
-    SimulatorCashChanger changer,
+    ICashChangerDevice device,
     IAnsiConsole console,
     IStringLocalizer localizer,
     CliSessionOptions options,
     ILineReader reader)
 {
     private readonly ICliCommandDispatcher _dispatcher = dispatcher;
-    private readonly SimulatorCashChanger _changer = changer;
+    private readonly ICashChangerDevice _device = device;
     private readonly IAnsiConsole _console = console;
     private readonly IStringLocalizer _L = localizer;
     private readonly CliSessionOptions _options = options;
@@ -67,7 +69,7 @@ public class CliInteractiveShell(
             await Task.Delay(100);
         }
 
-        try { _changer.Close(); } catch { }
+        try { await _device.CloseAsync(); } catch { }
     }
 
     private void SetupCancelHandler()
@@ -139,7 +141,7 @@ public class CliInteractiveShell(
 
     private bool ConfirmExit()
     {
-        var isOpen = _changer.State != Microsoft.PointOfService.ControlState.Closed;
+        var isOpen = _device.State.CurrentValue != DeviceControlState.Closed;
         if (isOpen)
         {
             _console.MarkupLine(_L["messages.exit_warning"]);

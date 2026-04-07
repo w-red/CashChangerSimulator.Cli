@@ -1,43 +1,58 @@
 using Cocona;
-using CashChangerSimulator.Device;
-using Microsoft.PointOfService;
+using System.Runtime.CompilerServices;
+using CashChangerSimulator.Core.Models;
+using CashChangerSimulator.Core.Services;
+using CashChangerSimulator.Core.Services.DeviceEventTypes;
 using Spectre.Console;
 using Microsoft.Extensions.Localization;
 using CashChangerSimulator.UI.Cli.Services;
 using CashChangerSimulator.Core;
+using R3;
+
+[assembly: InternalsVisibleTo("CashChangerSimulator.UI.Cli.Tests")]
 
 namespace CashChangerSimulator.UI.Cli;
 
 /// <summary>CLI からシミュレータを操作するためのコマンドを提供します。</summary>
-/// <param name="changer">シミュレータ本体のインスタンス。</param>
-/// <param name="deviceService">デバイスの基本操作（Open, Claim等）を提供するサービス。</param>
-/// <param name="cashService">現金操作（入出金）を提供するサービス。</param>
-/// <param name="configService">設定情報の管理を提供するサービス。</param>
-/// <param name="viewService">状態や履歴の表示を提供するサービス。</param>
-/// <param name="scriptService">自動実行スクリプトの実行機能を提供するサービス。</param>
-/// <param name="console">CLI への出力を行うためのコンソールインターフェース。</param>
-/// <param name="localizer">多言語対応メッセージを提供するローカライザー。</param>
-public partial class CliCommands(
-    SimulatorCashChanger changer,
-    CliDeviceService deviceService,
-    CliCashService cashService,
-    CliConfigService configService,
-    CliViewService viewService,
-    CliScriptService scriptService,
-    IAnsiConsole console,
-    IStringLocalizer localizer)
+public partial class CliCommands : IDisposable
 {
-    private readonly CliDeviceService _deviceService = deviceService;
-    private readonly CliCashService _cashService = cashService;
-    private readonly CliConfigService _configService = configService;
-    private readonly CliViewService _viewService = viewService;
-    private readonly CliScriptService _scriptService = scriptService;
-    private readonly SimulatorCashChanger _changer = changer;
-    private readonly IAnsiConsole _console = console;
-    private readonly IStringLocalizer _L = localizer;
+    private readonly CliDeviceService _deviceService;
+    private readonly CliCashService _cashService;
+    private readonly CliConfigService _configService;
+    private readonly CliViewService _viewService;
+    private readonly CliScriptService _scriptService;
+    private readonly ICashChangerDevice _device;
+    private readonly IAnsiConsole _console;
+    private readonly IStringLocalizer _L;
+    private readonly CompositeDisposable _disposables = new();
+
+    public CliCommands(
+        ICashChangerDevice device,
+        CliDeviceService deviceService,
+        CliCashService cashService,
+        CliConfigService configService,
+        CliViewService viewService,
+        CliScriptService scriptService,
+        IAnsiConsole console,
+        IStringLocalizer localizer)
+    {
+        _device = device;
+        _deviceService = deviceService;
+        _cashService = cashService;
+        _configService = configService;
+        _viewService = viewService;
+        _scriptService = scriptService;
+        _console = console;
+        _L = localizer;
+
+        // Subscribe to async errors using R3
+        _device.ErrorEvents
+            .Subscribe(HandleAsyncError)
+            .AddTo(_disposables);
+    }
 
     /// <summary>非同期エラーイベントをハンドリングし、エラーメッセージを表示します。</summary>
-    public void HandleAsyncError(object sender, DeviceErrorEventArgs e)
+    internal void HandleAsyncError(DeviceErrorEventArgs e)
     {
         _console.WriteLine();
         var hint = GetHint(e.ErrorCode);
@@ -49,13 +64,17 @@ public partial class CliCommands(
         }
     }
 
-    private string GetHint(ErrorCode errorCode)
+    private string GetHint(DeviceErrorCode errorCode)
     {
         var hintKey = $"messages.error_hint_{errorCode.ToString().ToLowerInvariant()}";
         var hint = _L[hintKey];
         if (hint.ResourceNotFound)
         {
-            return errorCode == ErrorCode.Illegal && !_changer.DeviceEnabled ? (string)_L["messages.error_hint_notenabled"] : (string)_L["messages.error_hint_generic"];
+            // Note: DeviceEnabled is not directly on ICashChangerDevice interface, 
+            // checking state instead for basic logic.
+            var state = _device.State.CurrentValue;
+            var isOpen = state != DeviceControlState.Closed && state != DeviceControlState.None;
+            return errorCode == DeviceErrorCode.Illegal && !isOpen ? (string)_L["messages.error_hint_notenabled"] : (string)_L["messages.error_hint_generic"];
         }
         return hint;
     }
@@ -207,5 +226,11 @@ public partial class CliCommands(
     public virtual void Unknown(string command)
     {
         _console.MarkupLine(_L["messages.unknown_command", command]);
+    }
+
+    public void Dispose()
+    {
+        _disposables.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
