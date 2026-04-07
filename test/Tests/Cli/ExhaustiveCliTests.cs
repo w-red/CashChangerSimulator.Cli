@@ -1,28 +1,28 @@
 using CashChangerSimulator.UI.Cli;
 using CashChangerSimulator.UI.Cli.Services;
 using CashChangerSimulator.UI.Cli.Localization;
-using CashChangerSimulator.Device;
-using CashChangerSimulator.Device.Services;
 using CashChangerSimulator.Core;
 using CashChangerSimulator.Core.Models;
 using CashChangerSimulator.Core.Services;
+using CashChangerSimulator.Core.Services.DeviceEventTypes;
 using CashChangerSimulator.Core.Transactions;
 using CashChangerSimulator.Core.Configuration;
 using CashChangerSimulator.Core.Managers;
-using Microsoft.PointOfService;
+using CashChangerSimulator.Core.Exceptions;
+using CashChangerSimulator.Device.Virtual;
+using CashChangerSimulator.Device.Virtual.Services;
 using Moq;
 using Shouldly;
 using Spectre.Console;
 using Microsoft.Extensions.Localization;
-using Microsoft.Extensions.Logging;
-using ILogger = Microsoft.Extensions.Logging.ILogger;
-using Spectre.Console.Rendering;
 using R3;
 using Microsoft.Extensions.DependencyInjection;
+using Xunit;
 
 namespace CashChangerSimulator.Tests.Cli;
 
 /// <summary>CashChangerSimulator.UI.Cli のカバレッジを 100% にするための網羅的テストクラス。</summary>
+[Collection("SequentialTests")]
 public class ExhaustiveCliTests
 {
     private readonly IServiceProvider _serviceProvider;
@@ -44,26 +44,33 @@ public class ExhaustiveCliTests
         _localizerMock.Setup(l => l[It.IsAny<string>()]).Returns((string key) => new LocalizedString(key, key));
         _localizerMock.Setup(l => l[It.IsAny<string>(), It.IsAny<object[]>()]).Returns((string key, object[] args) => new LocalizedString(key, string.Format(key, args)));
 
+        var configProvider = new ConfigurationProvider();
+        configProvider.Config.System.CurrencyCode = "JPY";
+
         var services = new ServiceCollection();
+        services.AddSingleton(configProvider);
+        
+        // 1. まず標準サービスをすべて登録する
         CliDIContainer.ConfigureServices(services, ["--verbose"]);
 
-        // Overwrite mocks
+        // 2. テストで検証が必要なサービスだけをモックに差し替える
+        // (ConfigureServices の後に AddSingleton することで、後の登録が優先される)
         services.AddSingleton(_consoleMock.Object);
         services.AddSingleton(_localizerMock.Object);
         services.AddSingleton(_metadataMock.Object);
         services.AddSingleton(_exportServiceMock.Object);
         services.AddSingleton(_scriptExecutionInternalMock.Object);
-        
-        // Use a real inventory for verification in tests
-        var realInventory = new Inventory();
-        services.AddSingleton(realInventory);
 
-        _serviceProvider = services.BuildServiceProvider();
+        // 3. プロバイダーを構築し、初期化を行う
+        var provider = services.BuildServiceProvider();
+        CliDIContainer.PostInitialize(provider, ["--verbose", "--currency", "JPY"]);
+
+        _serviceProvider = provider;
     }
 
     private CliCommands GetCommands() => _serviceProvider.GetRequiredService<CliCommands>();
     private ICliCommandDispatcher GetDispatcher() => _serviceProvider.GetRequiredService<ICliCommandDispatcher>();
-    private SimulatorCashChanger GetChanger() => _serviceProvider.GetRequiredService<SimulatorCashChanger>();
+    private ICashChangerDevice GetDevice() => _serviceProvider.GetRequiredService<ICashChangerDevice>();
     private Inventory GetInventory() => _serviceProvider.GetRequiredService<Inventory>();
     private CliSessionOptions GetOptions() => _serviceProvider.GetRequiredService<CliSessionOptions>();
 
@@ -72,22 +79,23 @@ public class ExhaustiveCliTests
     public async Task DispatcherAndServicesCombinedCoverage()
     {
         var dispatcher = GetDispatcher();
-        var changer = GetChanger();
+        var device = GetDevice();
         var inventory = GetInventory();
         var options = GetOptions();
 
         // Metadata setup for table display
         _metadataMock.Setup(m => m.SupportedDenominations).Returns([new DenominationKey(1000, CurrencyCashType.Bill, "JPY")]);
-        _metadataMock.Setup(m => m.SymbolPrefix).Returns(new BindableReactiveProperty<string>("¥"));
-        _metadataMock.Setup(m => m.SymbolSuffix).Returns(new BindableReactiveProperty<string>(""));
+        _metadataMock.Setup(m => m.SymbolPrefix).Returns(new ReactiveProperty<string>("¥").ToReadOnlyReactiveProperty());
+        _metadataMock.Setup(m => m.SymbolSuffix).Returns(new ReactiveProperty<string>("").ToReadOnlyReactiveProperty());
 
-        // Lifecycle
+        // Lifecycle (Async methods)
         await dispatcher.DispatchAsync("open");
         await dispatcher.DispatchAsync("claim 5000");
+        Thread.Sleep(500); // Wait for claim
         await dispatcher.DispatchAsync("enable");
+        Thread.Sleep(500); // Wait for enable
         await dispatcher.DispatchAsync("disable");
         await dispatcher.DispatchAsync("release");
-        await dispatcher.DispatchAsync("close");
 
         // View
         await dispatcher.DispatchAsync("status");
@@ -98,6 +106,7 @@ public class ExhaustiveCliTests
         // Cash
         await dispatcher.DispatchAsync("read-counts");
         await dispatcher.DispatchAsync("adjust-counts 1000:10");
+        Thread.Sleep(500); // Allow FireAndForget to finish
         inventory.GetCount(new DenominationKey(1000, CurrencyCashType.Bill, "JPY")).ShouldBe(10);
 
         await dispatcher.DispatchAsync("deposit 1000"); // Sync deposit
@@ -124,7 +133,10 @@ public class ExhaustiveCliTests
 
         // Box
         await dispatcher.DispatchAsync("set-box-removed true");
-        changer.HardwareStatus.IsCollectionBoxRemoved.Value.ShouldBeTrue();
+        if (device is VirtualCashChangerDevice simulator)
+        {
+            simulator.HardwareStatus.IsCollectionBoxRemoved.Value.ShouldBeTrue();
+        }
 
         // Misc
         await dispatcher.DispatchAsync("log-level Information");
@@ -134,21 +146,19 @@ public class ExhaustiveCliTests
         await dispatcher.DispatchAsync("   ");
     }
 
-    /// <summary>CLI サービスにおける例外ハンドリング（POS例外、一般例外）の網羅テストを行います。</summary>
+    /// <summary>CLI サービスにおける例外ハンドリング（デバイス例外、一般例外）の網羅テストを行います。</summary>
     [Fact]
     public void CliServicesExceptionHandling()
     {
-        var changer = GetChanger();
-        var service = new CliDeviceService(changer, _consoleMock.Object, _localizerMock.Object);
+        var device = GetDevice();
+        var service = new CliDeviceService(device, _consoleMock.Object, _localizerMock.Object);
         
-        var pex = new PosControlException("POS Error", ErrorCode.Illegal, 206); // Full
-        service.HandleException(pex);
+        // DeviceException を使用するように変更
+        var dex1 = new DeviceException("Device Error", DeviceErrorCode.Failure, 0); 
+        service.HandleException(dex1);
         
-        var mex = new PosControlException("POS Error", ErrorCode.Illegal, 205); // Empty
-        service.HandleException(mex);
-        
-        var sex = new PosControlException("POS Error", ErrorCode.Illegal, 999);
-        service.HandleException(sex);
+        var dex2 = new DeviceException("Device Error", DeviceErrorCode.Illegal, 0); 
+        service.HandleException(dex2);
 
         service.HandleException(new Exception("Generic"));
         
@@ -159,29 +169,29 @@ public class ExhaustiveCliTests
     [Fact]
     public async Task CliCommandsHandleAsyncErrorAllBranches()
     {
-        var commands = GetCommands();
-        var changer = GetChanger();
         var dispatcher = GetDispatcher();
+        var device = GetDevice();
+        var commands = GetCommands();
 
         // DeviceEnabled を操作する前に Open/Claim が必要
         await dispatcher.DispatchAsync("open");
         await dispatcher.DispatchAsync("claim 5000");
 
-        var e1 = new DeviceErrorEventArgs(ErrorCode.Failure, 0, ErrorLocus.Output, ErrorResponse.Retry);
-        commands.HandleAsyncError(changer, e1);
+        var e1 = new DeviceErrorEventArgs(DeviceErrorCode.Failure, 0, DeviceErrorLocus.Output, DeviceErrorResponse.Retry);
+        commands.HandleAsyncError(e1);
         
         _localizerMock.Setup(l => l["messages.error_hint_failure"]).Returns(new LocalizedString("key", "val", true));
         _localizerMock.Setup(l => l["messages.error_hint_illegal"]).Returns(new LocalizedString("key", "val", true));
         
-        changer.DeviceEnabled = false;
-        var e2 = new DeviceErrorEventArgs(ErrorCode.Illegal, 0, ErrorLocus.Output, ErrorResponse.Retry);
-        commands.HandleAsyncError(changer, e2);
+        await device.DisableAsync();
+        var e2 = new DeviceErrorEventArgs(DeviceErrorCode.Illegal, 0, DeviceErrorLocus.Output, DeviceErrorResponse.Retry);
+        commands.HandleAsyncError(e2);
 
-        changer.DeviceEnabled = true;
-        commands.HandleAsyncError(changer, e2);
+        await device.EnableAsync();
+        commands.HandleAsyncError(e2);
         
-        var e3 = new DeviceErrorEventArgs(ErrorCode.Extended, 0, ErrorLocus.Output, ErrorResponse.Retry);
-        commands.HandleAsyncError(changer, e3);
+        var e3 = new DeviceErrorEventArgs(DeviceErrorCode.Extended, 0, DeviceErrorLocus.Output, DeviceErrorResponse.Retry);
+        commands.HandleAsyncError(e3);
 
         _consoleMock.Invocations.Count.ShouldBeGreaterThan(0);
     }

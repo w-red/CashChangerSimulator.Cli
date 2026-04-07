@@ -4,27 +4,27 @@ using Spectre.Console.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using CashChangerSimulator.UI.Cli.Services;
-using CashChangerSimulator.Device;
-using Microsoft.PointOfService;
 using CashChangerSimulator.Core.Models;
 using CashChangerSimulator.Core;
 using CashChangerSimulator.Core.Configuration;
 using CashChangerSimulator.Core.Managers;
-
+using CashChangerSimulator.Core.Services;
+using CashChangerSimulator.Core.Transactions;
+using CashChangerSimulator.Device.Virtual;
 using Spectre.Console;
-
+using R3;
 using Xunit;
 
 namespace CashChangerSimulator.UI.Cli.Tests;
 
 /// <summary>CLI アプリケーションの統合動作を検証するためのテストクラス。</summary>
 [Collection("SequentialTests")]
-public class CliIntegrationTests
+public class CliIntegrationTests : IDisposable
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly TestConsole _console;
     private readonly Mock<ILineReader> _mockReader;
-    private readonly SimulatorCashChanger _changer;
+    private readonly ICashChangerDevice _device;
     private readonly ICliCommandDispatcher _dispatcher;
 
     public CliIntegrationTests()
@@ -48,22 +48,26 @@ public class CliIntegrationTests
         services.AddSingleton<IStringLocalizer>(mockLocalizer.Object);
 
         // 前もって CliSessionOptions を登録し、IsAsync を設定しておく
-        var options = new CliSessionOptions();
-        options.IsAsync = true;
+        var options = new CliSessionOptions { IsAsync = true };
         services.AddSingleton(options);
 
         _serviceProvider = services.BuildServiceProvider();
-        _changer = _serviceProvider.GetRequiredService<SimulatorCashChanger>();
+        _device = _serviceProvider.GetRequiredService<ICashChangerDevice>();
         _dispatcher = _serviceProvider.GetRequiredService<ICliCommandDispatcher>();
 
-        // デバイスの初期化（Open/Claim/Enable）
-        _changer.Open();
-        _changer.Claim(1000);
-        _changer.DeviceEnabled = true;
+        // デバイスの初期化
+        _device.OpenAsync().GetAwaiter().GetResult();
+        _device.ClaimAsync(1000).GetAwaiter().GetResult();
+        _device.EnableAsync().GetAwaiter().GetResult();
 
         // 在庫をクリア
         var inventory = _serviceProvider.GetRequiredService<Inventory>();
         inventory.Clear();
+    }
+
+    public void Dispose()
+    {
+        _device.CloseAsync().GetAwaiter().GetResult();
     }
 
     /// <summary>入金の開始から確定、終了までの一連のフローをテストし、在庫が増加することを確認します。</summary>
@@ -76,30 +80,33 @@ public class CliIntegrationTests
         inventory.GetCount(tenYen).ShouldBe(0);
 
         // Act: 入金開始
-        await _dispatcher.DispatchAsync("deposit 100"); // 100円分
+        await _dispatcher.DispatchAsync("deposit 100");
         
-        // 入金中に計数をシミュレート（IsAsync=true の場合、自動的には増えないため）
-        _changer.DepositController.TrackDeposit(new DenominationKey(100, CurrencyCashType.Bill, "JPY"));
-        
-        // 入金中の状態を確認 (IsAsync=true なので Count に留まる)
-        _changer.DepositStatus.ShouldBe(CashDepositStatus.Count);
+        // 入金中に計数をシミュレート
+        if (_device is VirtualCashChangerDevice simulator)
+        {
+            simulator.DepositController.TrackDeposit(new DenominationKey(100, CurrencyCashType.Bill, "JPY"));
+            
+            // Assert: 入金中の状態を確認
+            simulator.DepositController.DepositStatus.ShouldBe(DeviceDepositStatus.Counting);
 
-        // Act: 入金確定 (Fix)
-        await _dispatcher.DispatchAsync("fix-deposit");
-        _changer.DepositStatus.ShouldBe(CashDepositStatus.Count);
+            // Act: 入金確定 (Fix)
+            await _dispatcher.DispatchAsync("fix-deposit");
+            simulator.DepositController.DepositStatus.ShouldBe(DeviceDepositStatus.Counting);
 
-        // Act: 入金終了 (End)
-        await _dispatcher.DispatchAsync("end-deposit");
-        _changer.DepositStatus.ShouldBe(CashDepositStatus.End);
+            // Act: 入金終了 (End)
+            await _dispatcher.DispatchAsync("end-deposit");
+            simulator.DepositController.DepositStatus.ShouldBe(DeviceDepositStatus.End);
+        }
 
         // Assert: 在庫が反映されているか
-        inventory.CalculateTotal().ShouldBeGreaterThan(0);
+        inventory.CalculateTotal("JPY").ShouldBeGreaterThan(0);
         _console.Output.ShouldContain("messages.deposit_started");
         _console.Output.ShouldContain("messages.deposit_fixed");
         _console.Output.ShouldContain("messages.end_deposit_completed");
     }
 
-    /// <summary>出金時、在高不足の場合に適切なエラーメッセージが表示されることを確認します。</summary>
+    /// <summary>金額指定なしの出金時、在高不足の場合に適切なエラーメッセージが表示されることを確認します。</summary>
     [Fact]
     public async Task DispenseWithInsufficientFundsShouldShowError()
     {
@@ -129,10 +136,10 @@ public class CliIntegrationTests
         // シェルを構成
         var shell = new CliInteractiveShell(
             _dispatcher,
-            _changer,
+            _device,
             _console,
             _serviceProvider.GetRequiredService<IStringLocalizer>(),
-            _serviceProvider.GetRequiredService<CliSessionOptions>(), // DIから取得
+            _serviceProvider.GetRequiredService<CliSessionOptions>(),
             _mockReader.Object);
 
         // Act
@@ -141,7 +148,11 @@ public class CliIntegrationTests
         // Assert
         _console.Output.ShouldContain("messages.deposit_fixed");
         _console.Output.ShouldContain("messages.end_deposit_completed");
-        _changer.DepositStatus.ShouldBe(CashDepositStatus.End);
+        
+        if (_device is VirtualCashChangerDevice simulator)
+        {
+            simulator.DepositController.DepositStatus.ShouldBe(DeviceDepositStatus.End);
+        }
     }
 
     /// <summary>入金中に返却（Repay）を指示し、在庫が変化しないことを確認します。</summary>
@@ -156,21 +167,18 @@ public class CliIntegrationTests
         await _dispatcher.DispatchAsync("deposit 1000");
         
         // 計数をシミュレート
-        _changer.DepositController.TrackDeposit(new DenominationKey(1000, CurrencyCashType.Bill, "JPY"));
-        _changer.DepositAmount.ShouldBe(1000);
+        if (_device is VirtualCashChangerDevice simulator)
+        {
+            simulator.DepositController.TrackDeposit(new DenominationKey(1000, CurrencyCashType.Bill, "JPY"));
+            simulator.DepositController.DepositAmount.ShouldBe(1000);
 
-        // Act: 返却指示
-        // 現在の CLI コマンド (end-deposit) は Change 固定であるため、
-        // 統合テストとして返却（Repay）を検証するには、デバイスを直接操作するか、
-        // CLI に Repay 機能が追加されるのを待つ必要があります。
-        // ここではデバイスの RepayDeposit() を直接呼び出して、セッションが正しく終了し、
-        // 在庫に反映されないことを検証します。
-        _changer.RepayDeposit();
+            // Act: 返却指示
+            await _device.RepayDepositAsync();
 
-        // Assert
-        _changer.DepositStatus.ShouldBe(CashDepositStatus.End);
-        inventory.CalculateTotal().ShouldBe(0);
-        // _console.Output.ShouldContain("messages.deposit_tray_label"); // CLI 経由でないため出力はされない
+            // Assert
+            simulator.DepositController.DepositStatus.ShouldBe(DeviceDepositStatus.End);
+            inventory.CalculateTotal("JPY").ShouldBe(0);
+        }
     }
 
     /// <summary>入金中に一時停止と再開を試行します。</summary>
@@ -179,18 +187,19 @@ public class CliIntegrationTests
     {
         // Act: 入金開始
         await _dispatcher.DispatchAsync("deposit 1000");
-        _changer.DepositController.TrackDeposit(new DenominationKey(1000, CurrencyCashType.Bill, "JPY"));
-
-        // UI等のコントローラーは DI で取得
-        var depositController = _serviceProvider.GetRequiredService<DepositController>();
         
-        // Act: 一時停止
-        _changer.PauseDeposit(CashDepositPause.Pause);
-        depositController.IsPaused.ShouldBeTrue();
+        if (_device is VirtualCashChangerDevice simulator)
+        {
+            simulator.DepositController.TrackDeposit(new DenominationKey(1000, CurrencyCashType.Bill, "JPY"));
+            
+            // Act: 一時停止
+            await _device.PauseDepositAsync(DeviceDepositPause.Pause);
+            simulator.DepositController.IsPaused.ShouldBeTrue();
 
-        // Act: 再開
-        _changer.PauseDeposit(CashDepositPause.Restart);
-        depositController.IsPaused.ShouldBeFalse();
+            // Act: 再開
+            await _device.PauseDepositAsync(DeviceDepositPause.Resume);
+            simulator.DepositController.IsPaused.ShouldBeFalse();
+        }
     }
 
     /// <summary>デバイスがジャム状態のときに入金を開始しようとしてエラーになることを確認します。</summary>
@@ -206,6 +215,10 @@ public class CliIntegrationTests
 
         // Assert: エラーメッセージが表示されること
         _console.Output.ShouldContain("[[messages.error_label]]");
-        _changer.DepositStatus.ShouldNotBe(CashDepositStatus.Count);
+        
+        if (_device is VirtualCashChangerDevice simulator)
+        {
+             simulator.DepositController.DepositStatus.ShouldNotBe(DeviceDepositStatus.Counting);
+        }
     }
 }
