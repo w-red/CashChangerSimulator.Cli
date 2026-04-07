@@ -1,53 +1,60 @@
-# CashChanger Simulator
+# CashChanger Simulator CLI
 
-WPFベースの釣銭機シミュレーターです。UnifiedPOS (UPOS) 規格に準拠した動作をエミュレートし、POSアプリケーションのテストやデバッグを支援します。
+本プロジェクトは、UnifiedPOS (UPOS) 規格に準拠した釣銭機シミュレーターのコマンドラインインターフェース（CLI）版です。
+GUI環境がないサーバーやCI環境、またはターミナル上での素早いデバッグ作業に最適化されています。
 
 ## 主な機能
 
-- **UPOS 準拠の挙動**: `DispenseChange`, `DispenseCash`, 入金サイクル（`BeginDeposit`〜`EndDeposit`）のシミュレーション。
-- **マルチ通貨サポート**: JPY、USD 等、通貨ごとの金種設定が可能。
-- **リアルタイムフィード**: 入金・払出・エラー状態の変更を即座に表示。
-- **不一致シミュレーション**: 在庫の不一致状態（Discrepancy）を意図的に発生させ、例外処理のテストが可能。
-- **スクリプト実行**: JSON形式のスクリプトによる自動シナリオテスト。
+- **対話型シェル (REPL)**: オートコンプリートや履歴保存機能を備えた対話型インターフェースを提供します。
+- **UPOS 規格準拠**: デバイスのオープンから入出金サイクル（`BeginDeposit`〜`EndDeposit`）まで、標準的な操作をすべてサポート。
+- **スクリプト実行**: JSON 形式のシナリオファイルを読み込み、一連の操作を自動で実行できます。
+- **多言語対応**: コンソールメッセージの完全なローカライズをサポートしています。
+- **設定管理**: TOML ファイルベースの設定を CLI 上から直接参照・変更・保存が可能です。
 
 ## セットアップ
 
 ### 前提条件
 
 - .NET 10.0 SDK
-- Windows OS (WPF アプリケーションのため)
+- Windows OS (POS for .NET 依存のため)
 
 ### ビルドと実行
 
-1. リポジトリをクローンまたはダウンロードします。
-2. ターミナルでルートディレクトリに移動し、以下のコマンドを実行します。
+1. ターミナルで本ディレクトリに移動し、ビルドします。
 
-```powershell
-# ビルド
-dotnet build
+   ```powershell
+   dotnet build
+   ```
 
-# アプリケーションの実行
-dotnet run --project src/CashChangerSimulator.UI.Wpf/CashChangerSimulator.UI.Wpf.csproj
-```
+2. CLI を起動します。
 
-### テストの実行
+   ```powershell
+   dotnet run --project src/Cli/CashChangerSimulator.UI.Cli.csproj
+   ```
 
-```powershell
-# すべてのテスト（単体・結合・UI）を実行
-dotnet test
-```
+## 主要な操作コマンド
+
+CLI 起動後の対話型プロンプト（`>`）で以下のコマンドが使用可能です。
+
+| コマンド | 説明 |
+| :--- | :--- |
+| `status` | デバイスの状態と現在の在庫（Inventory）を表示します。 |
+| `deposit [金額]` | 入金処理を開始します。 |
+| `fix-deposit` | 投入された現金を確定（Escrow から本体へ移動）します。 |
+| `end-deposit` | 入金処理を完了し、在庫を更新します。 |
+| `dispense <金額>` | 指定した金額の払い出しを実行します。 |
+| `read-counts` | 現在の在高情報をデバイスから再読み込みします。 |
+| `adjust-counts` | 「1000:5,500:10」形式で在庫を手動調整します。 |
+| `history` | 取引履歴を表示します。 |
+| `run-script <path>` | 指定した JSON シナリオファイルを実行します。 |
+| `config list` | 現在の設定値を一覧表示します。 |
+| `help` | 利用可能な全コマンドと詳細な使いかたを表示します。 |
 
 ## ドキュメント
 
-詳細な情報は `docs/` ディレクトリ配下のドキュメントを参照してください。
-
 - [Architecture Overview](docs/Architecture_JP.md): アーキテクチャの概要
-- [UPOS Compliance Mapping](docs/UposComplianceMapping_JP.md): UPOS インターフェースの対応状況
-- [OPOS Compliance Mapping](docs/OposComplianceMapping_JP.md): OPOS エラーコードとの対応関係
-- [標準モード  - [操作説明書 (GUI)](docs/ApplicationOperatingInstructions_JP.md)
-  - [操作説明書 (CLI)](docs/CliOperatingInstructions_JP.md)
-  - [POS モード操作ガイド](docs/PosModeApplicationOperatingInstructions_JP.md)
-: POS 連携シミュレーションのガイド
+- [UPOS Compliance Mapping](docs/UposComplianceMapping_JP.md): UPOS 対応状況
+- [操作説明書 (CLI)](docs/CliOperatingInstructions_JP.md): より詳細な CLI の使用ガイド
 
 ---
-*英語版については、[README.md](README.md) を参照してください。*
+*For the English version, see [README.md](README.md).*

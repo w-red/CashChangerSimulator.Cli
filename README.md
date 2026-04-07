@@ -1,61 +1,59 @@
-# CashChanger Simulator
+# CashChanger Simulator CLI
 
-A WPF-based cash changer simulator that emulates UnifiedPOS (UPOS) standard operations. Designed to support testing and debugging of POS applications.
-
-## 🚀 Live Demo / Simulator URL
-
-The Virtual Cash Changer API is now available on Google Cloud Run for testing without local setup:
-
-- **Base URL**: [https://cash-changer-api-904915502524.asia-northeast1.run.app](https://cash-changer-api-904915502524.asia-northeast1.run.app)
-- **Interactive Documentation (Scalar)**: [View API Reference](https://cash-changer-api-904915502524.asia-northeast1.run.app/scalar/v1)
-
----
+This project is the Command Line Interface (CLI) version of the CashChanger Simulator, which emulates UnifiedPOS (UPOS) standard operations. It is optimized for server environments, CI pipelines, or quick debugging in a terminal.
 
 ## Key Features
 
-- **UPOS Compliant Behavior**: Emulates `DispenseChange`, `DispenseCash`, and the full deposit cycle (`BeginDeposit` to `EndDeposit`).
-- **Multi-Currency Support**: Configurable denominations for various currencies (e.g., JPY, USD).
-- **Real-Time Feed**: Provides immediate visual feedback for all cash events, status changes, and errors.
-- **Discrepancy Simulation**: Explicitly simulate inventory discrepancy states for robust exception handling testing.
-- **Scripted Automation**: Execute complex scenarios via JSON-based automation scripts.
+- **Interactive Shell (REPL)**: Provides an interactive interface with auto-completion and command history.
+- **UPOS Compliant**: Supports all standard operations, from opening the device to full deposit cycles (`BeginDeposit` to `EndDeposit`).
+- **Scripted Automation**: Execute a series of operations automatically by loading JSON-based scenario files.
+- **Localization**: Full support for localized console messages.
+- **Configuration Management**: View, change, and save TOML-based configurations directly from the CLI.
 
 ## Setup
 
 ### Prerequisites
 
 - .NET 10.0 SDK
-- Windows OS (Required for WPF)
+- Windows OS (Required for POS for .NET dependency)
 
 ### Build and Run
 
-1. Clone or download the repository.
-2. Open a terminal in the root directory and run:
+1. Navigate to this directory in your terminal and build:
 
-```powershell
-# Build the project
-dotnet build
+   ```powershell
+   dotnet build
+   ```
 
-# Run the simulator UI
-dotnet run --project src/CashChangerSimulator.UI.Wpf/CashChangerSimulator.UI.Wpf.csproj
-```
+2. Start the CLI:
 
-### Running Tests
+   ```powershell
+   dotnet run --project src/Cli/CashChangerSimulator.UI.Cli.csproj
+   ```
 
-```powershell
-# Run all unit, integration, and UI tests
-dotnet test
-```
+## Key Commands
+
+After starting the CLI, you can use the following commands at the interactive prompt (`>`):
+
+| Command | Description |
+| :--- | :--- |
+| `status` | Displays the device state and current inventory. |
+| `deposit [amount]` | Starts the deposit process. |
+| `fix-deposit` | Commits the inserted cash (moves from Escrow to main storage). |
+| `end-deposit` | Completes the deposit process and updates inventory. |
+| `dispense <amount>` | Executes a dispense operation for the specified amount. |
+| `read-counts` | Reloads current inventory information from the device. |
+| `adjust-counts` | Manually adjusts inventory using the format "1000:5,500:10". |
+| `history` | Displays transaction history. |
+| `run-script <path>` | Executes the specified JSON scenario file. |
+| `config list` | Lists all current configuration values. |
+| `help` | Displays all available commands and detailed usage. |
 
 ## Documentation
 
-For more detailed information, please refer to the documents in the `docs/` directory:
-
 - [Architecture Overview](docs/Architecture.md): High-level system design.
 - [UPOS Compliance Mapping](docs/UposComplianceMapping.md): Status of UPOS interface implementation.
-- [OPOS Compliance Mapping](docs/OposComplianceMapping.md): Mapping of OPOS error codes and result codes.
-- [Operating Instructions (GUI)](docs/ApplicationOperatingInstructions.md): Guide for manual GUI operations.
-- [Operating Instructions (CLI)](docs/CliOperatingInstructions.md)
-- [POS Mode Operation Guide](docs/PosModeApplicationOperatingInstructions.md): Guide for POS integration and error scenario testing.
+- [Operating Instructions (CLI)](docs/CliOperatingInstructions.md): Detailed guide for CLI usage.
 
 ---
 *For the Japanese version, see [README_JP.md](README_JP.md).*
