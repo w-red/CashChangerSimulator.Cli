@@ -31,16 +31,16 @@ public class CliCashServiceTests
         _mockLocalizer = new Mock<IStringLocalizer>();
         _mockMetadata = new Mock<ICurrencyMetadataProvider>();
         _inventory = new Inventory();
-        
+
         // Setup metadata with R3 properties
         _mockMetadata.Setup(m => m.CurrencyCode).Returns("JPY");
-        
+
         var prefix = new ReactiveProperty<string>("¥");
         _mockMetadata.Setup(m => m.SymbolPrefix).Returns(prefix);
-        
+
         var suffix = new ReactiveProperty<string>("");
         _mockMetadata.Setup(m => m.SymbolSuffix).Returns(suffix);
-        
+
         var denominations = new List<DenominationKey>
         {
             new DenominationKey(1000, CurrencyCashType.Bill, "JPY"),

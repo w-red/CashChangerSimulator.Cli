@@ -50,7 +50,7 @@ public static class CliDIContainer
         services.AddSingleton(AnsiConsole.Console);
 
         // Logging provider for DI
-        services.AddLogging(builder => 
+        services.AddLogging(builder =>
         {
             builder.AddConsole();
             builder.SetMinimumLevel(isVerbose ? LogLevel.Debug : LogLevel.Information);
@@ -92,7 +92,7 @@ public static class CliDIContainer
         services.AddSingleton<IDeviceSimulator, CliHardwareSimulator>();
         services.AddSingleton<CliEventHistoryObserver>();
         services.AddSingleton<IScriptExecutionService, ScriptExecutionService>();
-        
+
         // CLI Services
         services.AddSingleton<CliDeviceService>();
         services.AddSingleton<CliCashService>();
@@ -146,7 +146,7 @@ public static class CliDIContainer
         // Initialize History
         var history = provider.GetRequiredService<TransactionHistory>();
         var persistence = provider.GetRequiredService<HistoryPersistenceService>();
-        
+
         var historyState = persistence.Load();
         if (historyState.Entries.Count > 0)
         {

@@ -100,7 +100,7 @@ public class CliDeviceServiceTests
         var history = new TransactionHistory();
         var hardwareStatusManager = new HardwareStatusManager();
         var manager = new CashChangerManager(inventory, history, null);
-        
+
         // VirtualCashChangerDevice はファクトリ経由で生成
         var factory = new VirtualCashChangerDeviceFactory(new ConfigurationProvider(), NullLoggerFactory.Instance);
         var simulator = factory.Create(manager, inventory, hardwareStatusManager);

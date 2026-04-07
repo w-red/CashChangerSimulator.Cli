@@ -44,20 +44,20 @@ public class CliIntegrationTests : IDisposable
             var manager = sp.GetRequiredService<CashChangerManager>();
             var statusManager = sp.GetRequiredService<HardwareStatusManager>();
             var inventory = sp.GetRequiredService<Inventory>();
-            
+
             var device = (VirtualCashChangerDevice)factory.Create(manager, inventory, statusManager, testMutexName);
             device.OpenAsync().GetAwaiter().GetResult();
             return device;
         });
-        
+
         // テスト用に一部のサービスを差し替え
         services.AddSingleton<IAnsiConsole>(_console);
         services.AddSingleton<ILineReader>(_mockReader.Object);
-        
+
         // ローカライズのモック
         var mockLocalizer = new Mock<IStringLocalizer>();
         mockLocalizer.Setup(l => l[It.IsAny<string>()]).Returns((string s) => new LocalizedString(s, $"[[{s}]]"));
-        mockLocalizer.Setup(l => l[It.IsAny<string>(), It.IsAny<object[]>()]).Returns((string s, object[] args) => 
+        mockLocalizer.Setup(l => l[It.IsAny<string>(), It.IsAny<object[]>()]).Returns((string s, object[] args) =>
             new LocalizedString(s, args != null && args.Length > 0 ? $"[[{s}]] {string.Join(" ", args)}" : $"[[{s}]]"));
         services.AddSingleton<IStringLocalizer>(mockLocalizer.Object);
 
@@ -72,7 +72,7 @@ public class CliIntegrationTests : IDisposable
         // デバイスの初期化（ICashChangerDevice のファクトリ内ですでに Open 済み）
         _device.ClaimAsync(1000).GetAwaiter().GetResult();
         _device.EnableAsync().GetAwaiter().GetResult();
-        
+
         // 在庫をクリア
         var inventory = _serviceProvider.GetRequiredService<Inventory>();
         inventory.Clear();
@@ -94,12 +94,12 @@ public class CliIntegrationTests : IDisposable
 
         // Act: 入金開始
         await _dispatcher.DispatchAsync("deposit 100");
-        
+
         // 入金中に計数をシミュレート
         if (_device is VirtualCashChangerDevice simulator)
         {
             simulator.DepositController.TrackDeposit(new DenominationKey(100, CurrencyCashType.Bill, "JPY"));
-            
+
             // Assert: 入金中の状態を確認
             simulator.DepositController.DepositStatus.ShouldBe(DeviceDepositStatus.Counting);
 
@@ -141,11 +141,11 @@ public class CliIntegrationTests : IDisposable
         // Arrange
         var inputs = new Queue<string>(new[] { "deposit 500", "fix-deposit", "end-deposit", "exit" });
         _mockReader.Setup(r => r.Read(It.IsAny<string>())).Returns(() => inputs.Dequeue());
-        
+
         // ConfirmExit() 用の入力を TestConsole に仕込む
         _console.Input.PushKey(ConsoleKey.Y);
         _console.Input.PushKey(ConsoleKey.Enter);
-        
+
         // シェルを構成
         var shell = new CliInteractiveShell(
             _dispatcher,
@@ -161,7 +161,7 @@ public class CliIntegrationTests : IDisposable
         // Assert
         _console.Output.ShouldContain("messages.deposit_fixed");
         _console.Output.ShouldContain("messages.end_deposit_completed");
-        
+
         if (_device is VirtualCashChangerDevice simulator)
         {
             simulator.DepositController.DepositStatus.ShouldBe(DeviceDepositStatus.End);
@@ -178,7 +178,7 @@ public class CliIntegrationTests : IDisposable
 
         // Act: 入金開始
         await _dispatcher.DispatchAsync("deposit 1000");
-        
+
         // 計数をシミュレート
         if (_device is VirtualCashChangerDevice simulator)
         {
@@ -200,11 +200,11 @@ public class CliIntegrationTests : IDisposable
     {
         // Act: 入金開始
         await _dispatcher.DispatchAsync("deposit 1000");
-        
+
         if (_device is VirtualCashChangerDevice simulator)
         {
             simulator.DepositController.TrackDeposit(new DenominationKey(1000, CurrencyCashType.Bill, "JPY"));
-            
+
             // Act: 一時停止
             await _device.PauseDepositAsync(DeviceDepositPause.Pause);
             simulator.DepositController.IsPaused.ShouldBeTrue();
@@ -228,10 +228,10 @@ public class CliIntegrationTests : IDisposable
 
         // Assert: エラーメッセージが表示されること
         _console.Output.ShouldContain("[[messages.error_label]]");
-        
+
         if (_device is VirtualCashChangerDevice simulator)
         {
-             simulator.DepositController.DepositStatus.ShouldNotBe(DeviceDepositStatus.Counting);
+            simulator.DepositController.DepositStatus.ShouldNotBe(DeviceDepositStatus.Counting);
         }
     }
 }

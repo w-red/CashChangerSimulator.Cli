@@ -154,7 +154,7 @@ greet = ""こんにちは、{0}さん！""
         var invalidPath = Path.Combine(_tempPath, "invalid");
         Directory.CreateDirectory(invalidPath);
         File.WriteAllText(Path.Combine(invalidPath, "cli.en.toml"), "invalid = toml ["); // Syntax error
-        
+
         var localizer = new TomlStringLocalizer(invalidPath);
         CultureInfo.CurrentUICulture = new CultureInfo("en-US");
 

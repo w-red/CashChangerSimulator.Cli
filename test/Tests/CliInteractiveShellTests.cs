@@ -33,10 +33,10 @@ public class CliInteractiveShellTests
         _mockDevice = new Mock<ICashChangerDevice>();
         _mockConsole = new Mock<IAnsiConsole>();
         _mockLocalizer = new Mock<IStringLocalizer>();
-        
+
         _mockDevice.Setup(d => d.ErrorEvents).Returns(R3.Observable.Empty<DeviceErrorEventArgs>());
         _mockDevice.Setup(d => d.State).Returns(new ReactiveProperty<DeviceControlState>(DeviceControlState.Idle).ToReadOnlyReactiveProperty());
- 
+
         var mockDeviceService = new Mock<CliDeviceService>(_mockDevice.Object, _mockConsole.Object, _mockLocalizer.Object);
         var mockCashService = new Mock<CliCashService>(_mockDevice.Object, new Inventory(), new Mock<ICurrencyMetadataProvider>().Object, new CliSessionOptions(), _mockConsole.Object, _mockLocalizer.Object);
         var mockConfigService = new Mock<CliConfigService>(new Mock<ConfigurationProvider>().Object, _mockConsole.Object, _mockLocalizer.Object);

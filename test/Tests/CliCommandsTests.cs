@@ -35,7 +35,7 @@ public class CliCommandsTests : IDisposable
             var manager = sp.GetRequiredService<CashChangerManager>();
             var statusManager = sp.GetRequiredService<HardwareStatusManager>();
             var inventory = sp.GetRequiredService<Inventory>();
-            
+
             var device = (VirtualCashChangerDevice)factory.Create(manager, inventory, statusManager, testMutexName);
             device.OpenAsync().GetAwaiter().GetResult();
             return device;
@@ -120,7 +120,7 @@ public class CliCommandsTests : IDisposable
     {
         // Act & Assert
         Should.NotThrow(() => _commands.Claim(1000), "Claim should not throw and should succeed.");
-        
+
         // Wait for state cleanup if any (FireAndForget behavior in some systems)
         Thread.Sleep(100);
 
@@ -141,10 +141,10 @@ public class CliCommandsTests : IDisposable
         // Arrange
         Should.NotThrow(() => _commands.Claim(1000));
         Should.NotThrow(() => _commands.Enable());
-        
+
         if (_device is VirtualCashChangerDevice simulator)
         {
-             SpinWait.SpinUntil(() => simulator.HardwareStatus.DeviceEnabled.Value, 2000).ShouldBeTrue();
+            SpinWait.SpinUntil(() => simulator.HardwareStatus.DeviceEnabled.Value, 2000).ShouldBeTrue();
         }
 
         // Act

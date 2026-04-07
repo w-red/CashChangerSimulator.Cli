@@ -37,7 +37,7 @@ public class CliConfigServiceTests
         _mockLocalizer = new Mock<IStringLocalizer>();
 
         _mockLocalizer.Setup(l => l[It.IsAny<string>()]).Returns((string s) => new LocalizedString(s, s));
-        _mockLocalizer.Setup(l => l[It.IsAny<string>(), It.IsAny<object[]>()]).Returns((string s, object[] args) => 
+        _mockLocalizer.Setup(l => l[It.IsAny<string>(), It.IsAny<object[]>()]).Returns((string s, object[] args) =>
             new LocalizedString(s, args == null || args.Length == 0 ? s : $"{s}({string.Join(", ", args)})"));
 
         _service = new CliConfigService(_configProvider, _console, _mockLocalizer.Object);
