@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Core.Services;
 using CashChangerSimulator.Core.Managers;
@@ -16,9 +15,9 @@ public class CliDIContainerTests
 
     public CliDIContainerTests()
     {
-        var builder = Host.CreateApplicationBuilder();
-        CliDIContainer.ConfigureServices(builder.Services, ["--verbose"]);
-        _serviceProvider = builder.Services.BuildServiceProvider();
+        var services = new ServiceCollection();
+        CliDIContainer.ConfigureServices(services, ["--verbose"]);
+        _serviceProvider = services.BuildServiceProvider();
     }
 
     /// <summary>ICashChangerDevice が VirtualMockDevice として解決されることを検証します。</summary>

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using System.Threading;
 using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Core;
@@ -24,12 +23,12 @@ public class CliCommandsTests : IDisposable
     public CliCommandsTests()
     {
         // Cleanup singleton or static state if any
-        var builder = Host.CreateApplicationBuilder();
-        CliDIContainer.ConfigureServices(builder.Services, ["--verbose"]);
+        var services = new ServiceCollection();
+        CliDIContainer.ConfigureServices(services, ["--verbose"]);
 
         // テストごとに一意な Mutex 名を使用するように ICashChangerDevice を再登録（並列実行やクリーンアップ遅延による競合回避）
         var testMutexName = $"Local\\CashChangerSimulator_Test_{Guid.NewGuid()}";
-        builder.Services.AddSingleton<ICashChangerDevice>(sp =>
+        services.AddSingleton<ICashChangerDevice>(sp =>
         {
             var factory = (VirtualCashChangerDeviceFactory)sp.GetRequiredService<ICashChangerDeviceFactory>();
             var manager = sp.GetRequiredService<CashChangerManager>();
@@ -41,7 +40,7 @@ public class CliCommandsTests : IDisposable
             return device;
         });
 
-        _serviceProvider = builder.Services.BuildServiceProvider();
+        _serviceProvider = services.BuildServiceProvider();
 
         // Ensure static service provider is initialized for internal resolutions
         SimulatorServices.Provider = new TestServiceProvider(_serviceProvider);
