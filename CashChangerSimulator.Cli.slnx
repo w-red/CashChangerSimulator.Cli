@@ -1,9 +1,9 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Cli/CashChangerSimulator.Cli.csproj" />
+    <Project Path="src/CashChangerSimulator.Cli.csproj" />
   </Folder>
   <Folder Name="/test/">
-    <Project Path="test/Tests/CashChangerSimulator.Cli.Tests.csproj" />
+    <Project Path="test/CashChangerSimulator.Cli.Tests.csproj" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path="config.toml" />
