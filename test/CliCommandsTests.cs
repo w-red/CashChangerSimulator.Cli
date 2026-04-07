@@ -121,9 +121,6 @@ public class CliCommandsTests : IDisposable
         // Act & Assert
         Should.NotThrow(() => _commands.Claim(1000), "Claim should not throw and should succeed.");
 
-        // Wait for state cleanup if any (FireAndForget behavior in some systems)
-        Thread.Sleep(100);
-
         Should.NotThrow(() => _commands.Enable(), "Enable should not throw and should succeed.");
 
         // Assert

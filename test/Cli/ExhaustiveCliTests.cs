@@ -1,6 +1,6 @@
-using CashChangerSimulator.UI.Cli;
-using CashChangerSimulator.UI.Cli.Services;
-using CashChangerSimulator.UI.Cli.Localization;
+using CashChangerSimulator.Cli;
+using CashChangerSimulator.Cli.Services;
+using CashChangerSimulator.Cli.Localization;
 using CashChangerSimulator.Core;
 using CashChangerSimulator.Core.Models;
 using CashChangerSimulator.Core.Services;
@@ -19,9 +19,9 @@ using R3;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace CashChangerSimulator.Tests.Cli;
+namespace CashChangerSimulator.Cli.Tests.Cli;
 
-/// <summary>CashChangerSimulator.UI.Cli のカバレッジを 100% にするための網羅的テストクラス。</summary>
+/// <summary>CashChangerSimulator.Cli のカバレッジを 100% にするための網羅的テストクラス。</summary>
 [Collection("SequentialTests")]
 public class ExhaustiveCliTests
 {
@@ -49,7 +49,7 @@ public class ExhaustiveCliTests
 
         var services = new ServiceCollection();
         services.AddSingleton(configProvider);
-        
+
         // 1. まず標準サービスをすべて登録する
         CliDIContainer.ConfigureServices(services, ["--verbose"]);
 
@@ -61,7 +61,7 @@ public class ExhaustiveCliTests
             var manager = sp.GetRequiredService<CashChangerManager>();
             var statusManager = sp.GetRequiredService<HardwareStatusManager>();
             var inventory = sp.GetRequiredService<Inventory>();
-            
+
             var device = (VirtualCashChangerDevice)factory.Create(manager, inventory, statusManager, testMutexName);
             device.OpenAsync().GetAwaiter().GetResult();
             return device;
@@ -117,7 +117,7 @@ public class ExhaustiveCliTests
         await dispatcher.DispatchAsync("claim 5000");
         await dispatcher.DispatchAsync("enable");
         Thread.Sleep(500); // Wait for enable state transition
-        
+
         await dispatcher.DispatchAsync("status");
         await dispatcher.DispatchAsync("history 5");
         await dispatcher.DispatchAsync("export-history out.csv");
@@ -134,7 +134,7 @@ public class ExhaustiveCliTests
         await dispatcher.DispatchAsync("deposit 1000"); // Sync deposit
         await dispatcher.DispatchAsync("fix-deposit");
         await dispatcher.DispatchAsync("end-deposit");
-        
+
         options.IsAsync = true;
         await dispatcher.DispatchAsync("deposit 1000"); // Async deposit paths
         options.IsAsync = false;
@@ -174,16 +174,16 @@ public class ExhaustiveCliTests
     {
         var device = GetDevice();
         var service = new CliDeviceService(device, _consoleMock.Object, _localizerMock.Object);
-        
+
         // DeviceException を使用するように変更
-        var dex1 = new DeviceException("Device Error", DeviceErrorCode.Failure, 0); 
+        var dex1 = new DeviceException("Device Error", DeviceErrorCode.Failure, 0);
         service.HandleException(dex1);
-        
-        var dex2 = new DeviceException("Device Error", DeviceErrorCode.Illegal, 0); 
+
+        var dex2 = new DeviceException("Device Error", DeviceErrorCode.Illegal, 0);
         service.HandleException(dex2);
 
         service.HandleException(new Exception("Generic"));
-        
+
         _consoleMock.Invocations.Count.ShouldBeGreaterThan(0);
     }
 
@@ -201,17 +201,17 @@ public class ExhaustiveCliTests
 
         var e1 = new DeviceErrorEventArgs(DeviceErrorCode.Failure, 0, DeviceErrorLocus.Output, DeviceErrorResponse.Retry);
         commands.HandleAsyncError(e1);
-        
+
         _localizerMock.Setup(l => l["messages.error_hint_failure"]).Returns(new LocalizedString("key", "val", true));
         _localizerMock.Setup(l => l["messages.error_hint_illegal"]).Returns(new LocalizedString("key", "val", true));
-        
+
         await device.DisableAsync();
         var e2 = new DeviceErrorEventArgs(DeviceErrorCode.Illegal, 0, DeviceErrorLocus.Output, DeviceErrorResponse.Retry);
         commands.HandleAsyncError(e2);
 
         await device.EnableAsync();
         commands.HandleAsyncError(e2);
-        
+
         var e3 = new DeviceErrorEventArgs(DeviceErrorCode.Extended, 0, DeviceErrorLocus.Output, DeviceErrorResponse.Retry);
         commands.HandleAsyncError(e3);
 
@@ -225,7 +225,7 @@ public class ExhaustiveCliTests
         var factory = new TomlStringLocalizerFactory();
         var localizer = factory.Create(typeof(CliCommands));
         localizer.ShouldNotBeNull();
-        
+
         localizer["non-existent"].Value.ShouldBe("non-existent");
     }
 

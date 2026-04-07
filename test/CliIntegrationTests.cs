@@ -2,6 +2,7 @@ using Moq;
 using Shouldly;
 using Spectre.Console.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Localization;
 using CashChangerSimulator.Cli.Services;
 using CashChangerSimulator.Core.Models;
@@ -9,6 +10,7 @@ using CashChangerSimulator.Core;
 using CashChangerSimulator.Core.Configuration;
 using CashChangerSimulator.Core.Managers;
 using CashChangerSimulator.Core.Services;
+using CashChangerSimulator.Core.Services.DeviceEventTypes;
 using CashChangerSimulator.Core.Transactions;
 using CashChangerSimulator.Device.Virtual;
 using Spectre.Console;
@@ -123,15 +125,38 @@ public class CliIntegrationTests : IDisposable
     [Fact]
     public async Task DispenseWithInsufficientFundsShouldShowError()
     {
-        // Arrange: 在庫が空の状態
-        var inventory = _serviceProvider.GetRequiredService<Inventory>();
-        inventory.Clear();
+        // Arrange: デバイスの Mock を作成し、在高不足例外を投げるように設定
+        var mockDevice = new Mock<ICashChangerDevice>();
+        mockDevice.Setup(d => d.DispenseChangeAsync(It.IsAny<int>()))
+            .ThrowsAsync(new CashChangerSimulator.Core.Exceptions.InsufficientCashException("Insufficient funds"));
+
+        // Provide essentials for Mock ICashChangerDevice
+        mockDevice.SetupGet(x => x.ErrorEvents).Returns(Observable.Empty<DeviceErrorEventArgs>());
+        mockDevice.SetupGet(x => x.State).Returns(new ReactiveProperty<DeviceControlState>(DeviceControlState.Idle));
+        mockDevice.SetupGet(x => x.IsBusy).Returns(new ReactiveProperty<bool>(false));
+
+        // 既存の DI コンテナ設定をベースに、デバイスのみを Mock に差し替え
+        var services = new ServiceCollection();
+        CliDIContainer.ConfigureServices(services, Array.Empty<string>());
+        
+        // デバイスを Mock に差し替え
+        services.Replace(ServiceDescriptor.Singleton<ICashChangerDevice>(mockDevice.Object));
+        
+        // CliDIContainer で VirtualCashChangerDevice へのキャストが行われるのを回避するため、
+        // コントローラー自体もダミー(nullを返すファクトリ)に差し替え
+        services.Replace(ServiceDescriptor.Singleton<DepositController>(sp => null!));
+        services.Replace(ServiceDescriptor.Singleton<DispenseController>(sp => null!));
+
+        services.AddSingleton<IAnsiConsole>(_console);
+        
+        var sp = services.BuildServiceProvider();
+        var dispatcher = sp.GetRequiredService<ICliCommandDispatcher>();
 
         // Act: 1000円出金を試行
-        await _dispatcher.DispatchAsync("dispense 1000");
+        await dispatcher.DispatchAsync("dispense 1000");
 
         // Assert: エラーメッセージが含まれていること
-        _console.Output.ShouldContain("[[messages.error_label]]");
+        _console.Output.ShouldContain("[messages.error_label]");
     }
 
     /// <summary>対話型シェル経由で一連の入金操作を行い、最終的に終了することをテストします。</summary>
@@ -226,8 +251,8 @@ public class CliIntegrationTests : IDisposable
         // Act: 入金開始試行
         await _dispatcher.DispatchAsync("deposit 1000");
 
-        // Assert: エラーメッセージが表示されること
-        _console.Output.ShouldContain("[[messages.error_label]]");
+        // Assert: エラーメッセージがコンソールに表示されていることを確認
+        _console.Output.ShouldContain("[messages.error_label]");
 
         if (_device is VirtualCashChangerDevice simulator)
         {
